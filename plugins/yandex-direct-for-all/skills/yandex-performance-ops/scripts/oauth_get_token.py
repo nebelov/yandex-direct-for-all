@@ -16,9 +16,9 @@ from pathlib import Path
 import requests
 
 
-AUTHORIZE_URL = "https://oauth.yandex.com/authorize"
-TOKEN_URL = "https://oauth.yandex.com/token"
-SCREEN_CODE_REDIRECT_URI = "https://oauth.yandex.com/verification_code"
+AUTHORIZE_URL = "https://oauth.yandex.ru/authorize"
+TOKEN_URL = "https://oauth.yandex.ru/token"
+SCREEN_CODE_REDIRECT_URI = "https://oauth.yandex.ru/verification_code"
 LOCAL_HOSTS = {"localhost", "127.0.0.1"}
 
 auth_code = None
