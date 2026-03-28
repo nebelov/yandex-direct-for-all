@@ -27,15 +27,15 @@ description: "Глобальный навык для Яндекс.Директ/W
 - статистические подходы из `ads/siz/.claude/skills/ppc-data-analysis`
 
 Полная ревизия источников:
-- [source_inventory.md](~/.codex/skills/yandex-performance-ops/references/source_inventory.md)
-- [completeness_audit_2026-03-05.md](~/.codex/skills/yandex-performance-ops/references/completeness_audit_2026-03-05.md)
+- [source_inventory.md](references/source_inventory.md)
+- [completeness_audit_2026-03-05.md](references/completeness_audit_2026-03-05.md)
 
 Этот global skill тоже не имеет права “перепридумывать” `Wordstat/Direct` слой мимо исходных source-skills.
 Если есть конфликт между краткой интеграцией и source-skill по `Wordstat`, `direct-search-semantics` или `yandex-direct`, использовать source-skill как верхний канон.
 
 Для `Wordstat` канонический reusable reference этого global skill лежит здесь:
-- [wordstat_collection_framework.md](~/.codex/skills/yandex-performance-ops/references/wordstat_collection_framework.md)
-- [future_session_start_checklist.md](~/.codex/skills/yandex-performance-ops/references/future_session_start_checklist.md)
+- [wordstat_collection_framework.md](references/wordstat_collection_framework.md)
+- [future_session_start_checklist.md](references/future_session_start_checklist.md)
 Global skill обязан уже сам содержать полный канон Wordstat-сбора.
 Локальные project docs могут только добавлять client-specific терминологию, но не заменять global framework.
 Для клиентского research-отчета Wordstat теперь считать обязательным три отдельных слоя:
@@ -81,11 +81,11 @@ Local project = клиентский overlay + client-specific rules.
 Если live-правки уже сделаны, но user-facing report ещё не показан, работа считается незавершённой.
 
 Если user явно просит ускорить большой manual-review через локальные Codex CLI воркеры, это теперь канонический reusable path, а не разовая импровизация:
-- launcher: `~/.codex/skills/yandex-performance-ops/scripts/codex_cli_swarm_manual_review.py`
-- search prompt: `~/.codex/skills/yandex-performance-ops/templates/codex_swarm_search_worker_prompt.md`
-- rsya prompt: `~/.codex/skills/yandex-performance-ops/templates/codex_swarm_rsya_worker_prompt.md`
-- search schema: `~/.codex/skills/yandex-performance-ops/schemas/codex_swarm_search_chunk_response.schema.json`
-- rsya schema: `~/.codex/skills/yandex-performance-ops/schemas/codex_swarm_rsya_chunk_response.schema.json`
+- launcher: `scripts/codex_cli_swarm_manual_review.py`
+- search prompt: `templates/codex_swarm_search_worker_prompt.md`
+- rsya prompt: `templates/codex_swarm_rsya_worker_prompt.md`
+- search schema: `schemas/codex_swarm_search_chunk_response.schema.json`
+- rsya schema: `schemas/codex_swarm_rsya_chunk_response.schema.json`
 
 Этот swarm-path разрешён только как ускорение ручного verdict-слоя:
 - launcher обязан собирать единый full `worker knowledge pack` из overlay + product/rules/lessons и отдавать его как canonical context для всего run;
@@ -103,8 +103,8 @@ Local project = клиентский overlay + client-specific rules.
   - `raw/direct_account_snapshot_v2/raw_bundle/all_campaign_window_totals.tsv`
 - собрать search SQR на то же окно через `direct-orchestrator/scripts/collector_search_query_wave.py` или fallback `~/.codex/skills/yandex-performance-ops/scripts/fetch_sqr.sh`;
 - `direct-orchestrator/scripts/local_wave_review.py` теперь обязан терпеть волны без `placements` и без `campaigns_meta.json`: в creative-only / growth-only refresh он должен падать обратно на `all_campaign_window_totals.tsv`;
-- reusable creative builder: `~/.codex/skills/yandex-performance-ops/scripts/build_creative_rotation_from_outliers.py`;
-- reusable growth builder: `~/.codex/skills/yandex-performance-ops/scripts/build_growth_structure_from_routes.py`;
+- reusable creative builder: `scripts/build_creative_rotation_from_outliers.py`;
+- reusable growth builder: `scripts/build_growth_structure_from_routes.py`;
 - creative builder обязан выпускать совместимый комплект:
   - `03_creative_rotation_candidates.tsv`
   - `03_creative_rotation_candidates_v2.tsv`
@@ -117,20 +117,20 @@ Local project = клиентский overlay + client-specific rules.
   - а `09_structure_action_plan.tsv` затем собирается штатным `direct-orchestrator/scripts/build_structure_action_plan.py`;
 - verdict по новым standalone search-кампаниям нельзя высасывать из воздуха: если 15d growth-layer подтверждает только `new group` / `test layer`, так и писать `новая РК не подтверждена`.
 - Если пользователь дал `go` на live apply после такого refresh, канонический reusable apply-path теперь такой:
-  1. собрать text-rotation validation/apply pack через `~/.codex/skills/yandex-performance-ops/scripts/build_text_rotation_apply_pack_from_tsv.py`;
-  2. прогнать `dry-run`, затем live apply через `~/.codex/skills/yandex-performance-ops/scripts/apply_ad_replacement_pack.py`;
-  3. собрать manifest новых search adgroups и применить его через `~/.codex/skills/yandex-performance-ops/scripts/apply_search_adgroup_manifest.py`;
+  1. собрать text-rotation validation/apply pack через `scripts/build_text_rotation_apply_pack_from_tsv.py`;
+  2. прогнать `dry-run`, затем live apply через `scripts/apply_ad_replacement_pack.py`;
+  3. собрать manifest новых search adgroups и применить его через `scripts/apply_search_adgroup_manifest.py`;
   4. сделать strict readback именно по новым `ad_ids` и `adgroup_ids`, а не полагаться только на giant `campaign_autotest.py` по всей кампании;
   5. отправлять на модерацию только новые объявления через `send_to_moderation.py --ad-ids ...`;
   6. RSYA image replacements не применять автоматически без visual/manual validation даже если refresh-docs их уже рекомендуют.
 - `campaign_autotest.py` может быть полезен как общий фон, но для creative/growth live-wave он не должен быть единственным safety-gate: старые `WARN/FAIL` по legacy-сущностям слишком шумные. Канонический gate = strict readback новых сущностей + targeted moderation readback.
 
 Для strict pre-apply перед live-правками теперь каноничен отдельный local-pack path:
-- Search strict local pack builder: `~/.codex/skills/yandex-performance-ops/scripts/build_local_search_negatives_pack.py`
-- Search live drift-check: `~/.codex/skills/yandex-performance-ops/scripts/dry_run_search_negatives_pack.py`
-- RSYA strict local pack builder: `~/.codex/skills/yandex-performance-ops/scripts/build_local_rsya_excluded_sites_pack.py`
-- RSYA validator: `~/.codex/skills/yandex-performance-ops/scripts/validate_excluded_sites_pack.py`
-- RSYA live drift-check/apply helper: `~/.codex/skills/yandex-performance-ops/scripts/apply_no_moderation_pack.py`
+- Search strict local pack builder: `scripts/build_local_search_negatives_pack.py`
+- Search live drift-check: `scripts/dry_run_search_negatives_pack.py`
+- RSYA strict local pack builder: `scripts/build_local_rsya_excluded_sites_pack.py`
+- RSYA validator: `scripts/validate_excluded_sites_pack.py`
+- RSYA live drift-check/apply helper: `scripts/apply_no_moderation_pack.py`
 
 Правила этого preflight-контура:
 - Search server-pack должен собираться только из `high-confidence stop-only` слоя; generic single-word adjectives, numeric junk и low-confidence typo garbage должны отрезаться builder'ом до dry-run.
@@ -144,7 +144,7 @@ Local project = клиентский overlay + client-specific rules.
 - `gpt-5.1-codex-mini` можно использовать как cheap default для bulk swarm only with guardrail: на Search он не должен быть единственным verdict-слоем. Mixed benchmark `2026-03-15` показал сильный bias к `keep`, особенно на brand-stop / route-fix / growth rows. Канонический режим: `mini` для draft/triage, сильная модель или человек для спорного хвоста и финального QA.
 
 Для огромных Search SQR очередей канонический deterministic reduction-layer теперь такой:
-- reusable script: `~/.codex/skills/yandex-performance-ops/scripts/search_negative_marker_engine.py`;
+- reusable script: `scripts/search_negative_marker_engine.py`;
 - project wrapper: `direct-orchestrator/scripts/run_search_negative_marker_cycle.py`;
 - это не auto-verdict и не auto-stop, а только shrink-engine перед manual negative review;
 - обязательный порядок:
@@ -240,7 +240,7 @@ Client-specific rule sets для discovery и review должны лежать �
 - если есть `clicks > 0` и `cost = 0`, агент не перекладывает это на пользователя, а сам ставит действие `перепроверка raw/source -> потом стоп` или `мониторинг следующей волны`.
 
 Для больших `RSYA placement` очередей теперь каноничен отдельный deterministic `queue prefilter` ДО ручного verdict-слоя:
-- reusable script: `~/.codex/skills/yandex-performance-ops/scripts/prefilter_rsya_manual_queue.py`;
+- reusable script: `scripts/prefilter_rsya_manual_queue.py`;
 - это не auto-stop и не auto-verdict, а только фильтр очереди `manual review / monitor / anomaly quarantine`;
 - safe-default для всех клиентов:
   - `low_signal_skip`: `conversions = 0`, `clicks < 3`, `CTR < 1%`, `cost < 20`;
@@ -345,18 +345,18 @@ Client-specific rule sets для discovery и review должны лежать �
 - `./.claude/yandex-performance-client.json`
 - путь из `YANDEX_PERFORMANCE_CLIENT_CONTEXT`
 
-На этом макбуке есть архив client overlays, но они не активны по умолчанию без local project file или явного `YANDEX_PERFORMANCE_CLIENT_CONTEXT`:
-- `~/.codex/clients/client-a/.codex/yandex-performance-client.json`
+В public bundle client overlays не хранятся. Они должны жить в локальном private project-layer вне git, например:
+- `./.codex/yandex-performance-client.json`
 
 Шаблоны:
-- [client_context.example.json](~/.codex/skills/yandex-performance-ops/templates/client_context.example.json)
-- [routing_map.example.tsv](~/.codex/skills/yandex-performance-ops/templates/routing_map.example.tsv)
-- [campaign_id_map.example.json](~/.codex/skills/yandex-performance-ops/templates/campaign_id_map.example.json)
-- [copy_map.example.json](~/.codex/skills/yandex-performance-ops/templates/copy_map.example.json)
+- [client_context.example.json](templates/client_context.example.json)
+- [routing_map.example.tsv](templates/routing_map.example.tsv)
+- [campaign_id_map.example.json](templates/campaign_id_map.example.json)
+- [copy_map.example.json](templates/copy_map.example.json)
 
 Описание полей:
-- [local_overlay_contract.md](~/.codex/skills/yandex-performance-ops/references/local_overlay_contract.md)
-- [yandex_cloud_search_handoffs.md](~/.codex/skills/yandex-performance-ops/references/yandex_cloud_search_handoffs.md)
+- [local_overlay_contract.md](references/local_overlay_contract.md)
+- [yandex_cloud_search_handoffs.md](references/yandex_cloud_search_handoffs.md)
 
 Быстрый scaffold:
 ```bash
@@ -492,7 +492,7 @@ python3 ~/.codex/skills/yandex-performance-ops/scripts/init_client_context.py \
   - явный non-target хвост (`другой товар`, `B2B`, `чужой бренд`, `marketplace`, `alien use-case`) остаётся в negative candidates.
 
 Для Search negatives перед live apply теперь обязателен отдельный dry-run слой, а не только validation JSON:
-- reusable script: `~/.codex/skills/yandex-performance-ops/scripts/dry_run_search_negatives_pack.py`;
+- reusable script: `scripts/dry_run_search_negatives_pack.py`;
 - он читает уже подготовленный `search_negatives_pack_apply.json`, снимает live `NegativeKeywords` по adgroup и проверяет:
   - drift между live baseline и `before_keywords` из pack;
   - сколько минусов уже стоят в группе;
@@ -616,9 +616,9 @@ python3 ~/.codex/skills/yandex-performance-ops/scripts/init_client_context.py \
   - auth mode (`API key` или `IAM token`/service account)
   - роль на сервис-аккаунте `search-api.webSearch.user`
   - какой именно Search API endpoint используется в collector.
-- Если в локальном проекте cloud-search path еще не оформлен, но уже известно что на этом макбуке есть проверенный operational bundle, сначала проверить:
-  - `~/.codex/credentials/yandex-cloud-search-client.json`
-  - затем canonical source на `macbook-air-remote`, описанный в `references/yandex_cloud_search_handoffs.md`
+- Если в локальном проекте cloud-search path еще не оформлен, сначала проверить:
+  - свой private credentials file вне git
+  - `references/yandex_cloud_search_handoffs.md`
 - Такой bundle считать bridge-path: использовать можно, но отдельно фиксировать, что клиентский собственный cloud-search path еще не оформлен.
 
 3. Roistat first, если он реально подключён у клиента
@@ -1085,19 +1085,19 @@ python3 ~/.codex/skills/yandex-performance-ops/scripts/oauth_get_token.py --help
 ```
 4. Если есть Roistat, задать env и проверить query script.
 5. Если нужен Metrika-layer, прочитать:
-- [CONFIG.md](~/.codex/skills/yandex-performance-ops/references/metrika/CONFIG.md)
+- [CONFIG.md](references/metrika/CONFIG.md)
 
 ### 2. Сбор новой семантики
 
 Перед началом открыть:
-- [wordstat_collection_framework.md](~/.codex/skills/yandex-performance-ops/references/wordstat_collection_framework.md)
-- [12_wordstat_collection_pipeline.md](~/.codex/skills/yandex-performance-ops/references/task_playbooks/12_wordstat_collection_pipeline.md)
+- [wordstat_collection_framework.md](references/wordstat_collection_framework.md)
+- [12_wordstat_collection_pipeline.md](references/task_playbooks/12_wordstat_collection_pipeline.md)
 
 1. Собрать локальную product map по шаблону:
-- [wordstat_product_map_template.md](~/.codex/skills/yandex-performance-ops/templates/wordstat_product_map_template.md)
+- [wordstat_product_map_template.md](templates/wordstat_product_map_template.md)
 
 2. Сформировать `Wave 1` masks file по шаблону:
-- [wordstat_masks_wave1_template.tsv](~/.codex/skills/yandex-performance-ops/templates/wordstat_masks_wave1_template.tsv)
+- [wordstat_masks_wave1_template.tsv](templates/wordstat_masks_wave1_template.tsv)
 
 3. Провести обязательный `mask review`:
 - web/source synonyms review;
@@ -1136,10 +1136,10 @@ bash ~/.codex/skills/yandex-performance-ops/scripts/fetch_sqr.sh \
 ```
 
 10. Анализ делать только вручную мной; шаблоны ниже использовать как чеклисты и рамку, а не как analysis-скрипты:
-- [agent_target_from_wave.md](~/.codex/skills/yandex-performance-ops/templates/agent_target_from_wave.md)
-- [agent_negative_from_wave.md](~/.codex/skills/yandex-performance-ops/templates/agent_negative_from_wave.md)
-- [agent_minus_words_from_negative.md](~/.codex/skills/yandex-performance-ops/templates/agent_minus_words_from_negative.md)
-- [agent_validation_checklist.md](~/.codex/skills/yandex-performance-ops/templates/agent_validation_checklist.md)
+- [agent_target_from_wave.md](templates/agent_target_from_wave.md)
+- [agent_negative_from_wave.md](templates/agent_negative_from_wave.md)
+- [agent_minus_words_from_negative.md](templates/agent_minus_words_from_negative.md)
+- [agent_validation_checklist.md](templates/agent_validation_checklist.md)
 
 ### 3. Финализация и кластеризация
 
@@ -1198,19 +1198,19 @@ bash ~/.codex/skills/yandex-performance-ops/scripts/fetch_sqr.sh --help
      5. проверить фактические apply-артефакты/чейнджлог именно по этому CID;
      6. только потом делать вывод "просадку вызвали изменения".
 3. Анализ по промтам:
-- [full_audit_plan_prompt.md](~/.codex/skills/yandex-performance-ops/templates/full_audit_plan_prompt.md)
-- [search_query_prompt.md](~/.codex/skills/yandex-performance-ops/templates/search_query_prompt.md)
-- [ad_components_prompt.md](~/.codex/skills/yandex-performance-ops/templates/ad_components_prompt.md)
-- [bids_prompt.md](~/.codex/skills/yandex-performance-ops/templates/bids_prompt.md)
-- [structure_prompt.md](~/.codex/skills/yandex-performance-ops/templates/structure_prompt.md)
-- [validate_negatives_prompt.md](~/.codex/skills/yandex-performance-ops/templates/validate_negatives_prompt.md)
-- [aggregation_prompt.md](~/.codex/skills/yandex-performance-ops/templates/aggregation_prompt.md)
-- [search_diagnostic_prompt.md](~/.codex/skills/yandex-performance-ops/templates/search_diagnostic_prompt.md)
-- [rsy_placements_prompt.md](~/.codex/skills/yandex-performance-ops/templates/rsy_placements_prompt.md)
-- [validate_placements_prompt.md](~/.codex/skills/yandex-performance-ops/templates/validate_placements_prompt.md)
-- [validate_tasks_prompt.md](~/.codex/skills/yandex-performance-ops/templates/validate_tasks_prompt.md)
-- [tasks_format.md](~/.codex/skills/yandex-performance-ops/templates/tasks_format.md)
-- [diagnostic_agent_bundle_template.md](~/.codex/skills/yandex-performance-ops/templates/diagnostic_agent_bundle_template.md)
+- [full_audit_plan_prompt.md](templates/full_audit_plan_prompt.md)
+- [search_query_prompt.md](templates/search_query_prompt.md)
+- [ad_components_prompt.md](templates/ad_components_prompt.md)
+- [bids_prompt.md](templates/bids_prompt.md)
+- [structure_prompt.md](templates/structure_prompt.md)
+- [validate_negatives_prompt.md](templates/validate_negatives_prompt.md)
+- [aggregation_prompt.md](templates/aggregation_prompt.md)
+- [search_diagnostic_prompt.md](templates/search_diagnostic_prompt.md)
+- [rsy_placements_prompt.md](templates/rsy_placements_prompt.md)
+- [validate_placements_prompt.md](templates/validate_placements_prompt.md)
+- [validate_tasks_prompt.md](templates/validate_tasks_prompt.md)
+- [tasks_format.md](templates/tasks_format.md)
+- [diagnostic_agent_bundle_template.md](templates/diagnostic_agent_bundle_template.md)
    Все выводы по raw-данным делаются вручную; шаблон нужен как строгая структура результата.
    Для account-wide optimisation существующего search-кабинета до первого пользовательского summary по умолчанию открыть минимум эти playbook-и:
    - `01_search_negatives_7d.md`
@@ -1234,7 +1234,7 @@ python3 ~/.codex/skills/yandex-performance-ops/scripts/apply_tasks.py --help
 python3 ~/.codex/skills/yandex-performance-ops/scripts/clone_search_groups_to_new_campaign.py --help
 ```
 7. Пост-валидация:
-- [post_apply_validation_prompt.md](~/.codex/skills/yandex-performance-ops/templates/post_apply_validation_prompt.md)
+- [post_apply_validation_prompt.md](templates/post_apply_validation_prompt.md)
 8. Обновить YouGile по итогам цикла, даже если это был только precheck/master-plan.
 
 ### 5. Metrika workflow
@@ -1249,10 +1249,10 @@ bash ~/.codex/skills/yandex-performance-ops/scripts/metrika/goals.sh --counter <
 ```
 
 Справка:
-- [API_REFERENCE.md](~/.codex/skills/yandex-performance-ops/references/metrika/API_REFERENCE.md)
-- [CUSTOM_REPORTS.md](~/.codex/skills/yandex-performance-ops/references/metrika/CUSTOM_REPORTS.md)
-- [PERIOD_COMPARISON.md](~/.codex/skills/yandex-performance-ops/references/metrika/PERIOD_COMPARISON.md)
-- [SEARCH_QUERIES.md](~/.codex/skills/yandex-performance-ops/references/metrika/SEARCH_QUERIES.md)
+- [API_REFERENCE.md](references/metrika/API_REFERENCE.md)
+- [CUSTOM_REPORTS.md](references/metrika/CUSTOM_REPORTS.md)
+- [PERIOD_COMPARISON.md](references/metrika/PERIOD_COMPARISON.md)
+- [SEARCH_QUERIES.md](references/metrika/SEARCH_QUERIES.md)
 
 ### 6. Media-plan and plan-fact
 
@@ -1263,19 +1263,19 @@ python3 ~/.codex/skills/yandex-performance-ops/scripts/forecast_engine.py --help
 python3 ~/.codex/skills/yandex-performance-ops/scripts/test_forecast.py --help
 ```
 3. При необходимости использовать шаблон:
-- [media_plan_prompt.md](~/.codex/skills/yandex-performance-ops/templates/media_plan_prompt.md)
+- [media_plan_prompt.md](templates/media_plan_prompt.md)
 
 ### 7. Competitor creative research
 
 Использовать для сбора рекламных сообщений и креативных паттернов конкурентов:
-- [competitor_research_workflow.md](~/.codex/skills/yandex-performance-ops/references/competitor_research_workflow.md)
-- [competitor_research_prompt.md](~/.codex/skills/yandex-performance-ops/templates/competitor_research_prompt.md)
+- [competitor_research_workflow.md](references/competitor_research_workflow.md)
+- [competitor_research_prompt.md](templates/competitor_research_prompt.md)
 
 ### 8. Post-cycle revision
 
 После завершения волны работ обязательно пройти:
-- [agent_skill_revision_checklist.md](~/.codex/skills/yandex-performance-ops/templates/agent_skill_revision_checklist.md)
-- [lessons_registry.md](~/.codex/skills/yandex-performance-ops/references/lessons_registry.md)
+- [agent_skill_revision_checklist.md](templates/agent_skill_revision_checklist.md)
+- [lessons_registry.md](references/lessons_registry.md)
 
 Если найден reusable-урок:
 - фиксировать в локальном проекте;
@@ -1336,7 +1336,7 @@ python3 ~/.codex/skills/yandex-performance-ops/scripts/test_forecast.py --help
 - локальные Roistat deep analyzers
 
 Причины и backlog:
-- [source_inventory.md](~/.codex/skills/yandex-performance-ops/references/source_inventory.md)
+- [source_inventory.md](references/source_inventory.md)
 
 ## Templates
 
@@ -1380,19 +1380,19 @@ python3 ~/.codex/skills/yandex-performance-ops/scripts/test_forecast.py --help
 
 Если пользователь формулирует задачу как конкретный operational block, сначала открывай соответствующий playbook:
 
-- [00_output_contract.md](~/.codex/skills/yandex-performance-ops/references/task_playbooks/00_output_contract.md)
-- [01_search_negatives_7d.md](~/.codex/skills/yandex-performance-ops/references/task_playbooks/01_search_negatives_7d.md)
-- [02_rsy_stop_sites_7d.md](~/.codex/skills/yandex-performance-ops/references/task_playbooks/02_rsy_stop_sites_7d.md)
-- [03_creative_outliers_rotation.md](~/.codex/skills/yandex-performance-ops/references/task_playbooks/03_creative_outliers_rotation.md)
-- [04_deep_campaign_review_7d.md](~/.codex/skills/yandex-performance-ops/references/task_playbooks/04_deep_campaign_review_7d.md)
-- [05_change_impact_timeline.md](~/.codex/skills/yandex-performance-ops/references/task_playbooks/05_change_impact_timeline.md)
-- [06_bids_and_modifiers_review.md](~/.codex/skills/yandex-performance-ops/references/task_playbooks/06_bids_and_modifiers_review.md)
-- [07_yougile_hygiene_sync.md](~/.codex/skills/yandex-performance-ops/references/task_playbooks/07_yougile_hygiene_sync.md)
-- [08_competitor_search_serp.md](~/.codex/skills/yandex-performance-ops/references/task_playbooks/08_competitor_search_serp.md)
-- [09_missing_phrases_growth.md](~/.codex/skills/yandex-performance-ops/references/task_playbooks/09_missing_phrases_growth.md)
-- [10_extra_control_layers.md](~/.codex/skills/yandex-performance-ops/references/task_playbooks/10_extra_control_layers.md)
-- [11_pre_apply_presentation.md](~/.codex/skills/yandex-performance-ops/references/task_playbooks/11_pre_apply_presentation.md)
-- [12_wordstat_collection_pipeline.md](~/.codex/skills/yandex-performance-ops/references/task_playbooks/12_wordstat_collection_pipeline.md)
+- [00_output_contract.md](references/task_playbooks/00_output_contract.md)
+- [01_search_negatives_7d.md](references/task_playbooks/01_search_negatives_7d.md)
+- [02_rsy_stop_sites_7d.md](references/task_playbooks/02_rsy_stop_sites_7d.md)
+- [03_creative_outliers_rotation.md](references/task_playbooks/03_creative_outliers_rotation.md)
+- [04_deep_campaign_review_7d.md](references/task_playbooks/04_deep_campaign_review_7d.md)
+- [05_change_impact_timeline.md](references/task_playbooks/05_change_impact_timeline.md)
+- [06_bids_and_modifiers_review.md](references/task_playbooks/06_bids_and_modifiers_review.md)
+- [07_yougile_hygiene_sync.md](references/task_playbooks/07_yougile_hygiene_sync.md)
+- [08_competitor_search_serp.md](references/task_playbooks/08_competitor_search_serp.md)
+- [09_missing_phrases_growth.md](references/task_playbooks/09_missing_phrases_growth.md)
+- [10_extra_control_layers.md](references/task_playbooks/10_extra_control_layers.md)
+- [11_pre_apply_presentation.md](references/task_playbooks/11_pre_apply_presentation.md)
+- [12_wordstat_collection_pipeline.md](references/task_playbooks/12_wordstat_collection_pipeline.md)
 
 Логика использования:
 - сначала брать `00_output_contract.md`, чтобы результат сразу ложился в типовой bundle;
@@ -1409,7 +1409,7 @@ python3 ~/.codex/skills/yandex-performance-ops/scripts/test_forecast.py --help
 ## Lessons and gotchas
 
 Перед сложной работой сверять:
-- [lessons_registry.md](~/.codex/skills/yandex-performance-ops/references/lessons_registry.md)
+- [lessons_registry.md](references/lessons_registry.md)
 
 ## Быстрый preflight
 

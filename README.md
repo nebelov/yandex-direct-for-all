@@ -12,9 +12,39 @@ GitHub-ready набор для агентной работы с `Yandex Direct`,
 Если репозиторий впервые открывает другой ИИ, начинать лучше с:
 
 - `AI_ONBOARDING.md`
+- `QUICKSTART.md`
 - `README.md`
 - `docs/operator-auth-launchers.md`
 - `docs/oauth-and-app-setup.md`
+
+## Start Here
+
+- Новый ИИ-оператор: `AI_ONBOARDING.md`
+- Самый короткий безопасный запуск: `QUICKSTART.md`
+- Типовые вопросы первого запуска: `FAQ.md`
+- Auth-модели без путаницы: `docs/auth-model-matrix.md`
+- Operator OAuth launchers: `docs/operator-auth-launchers.md`
+- Полный inventory collector-скриптов: `plugins/yandex-direct-for-all/docs/data-collection-scripts.md`
+
+## Prerequisites
+
+- `python3`
+- `node` и `npm`
+- `rsync`
+- Python package `requests`
+- браузер для OAuth
+- для `Direct` default path: свободный `localhost:8080`
+
+## Режимы запуска
+
+| Что хотите сделать | Откуда запускать | Команда | Нужен restart |
+|---|---|---|---|
+| Проверить bundle | `<repo-root>` | `bash ./plugins/yandex-direct-for-all/scripts/validate_bundle.sh` | нет |
+| Поставить bundle в `Codex` | `<repo-root>` | `bash ./plugins/yandex-direct-for-all/scripts/install_codex_bundle.sh` | обычно да |
+| Поставить bundle в `Claude` | `<repo-root>` | `bash ./plugins/yandex-direct-for-all/scripts/install_claude_bundle.sh` | да |
+| Получить token для `Direct` | `<repo-root>` | `bash ./plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service direct` | нет |
+| Получить token для `Metrika/Audience` | `<repo-root>` | `bash ./plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service metrika` | нет |
+| Работать только внутри plugin-root | `<plugin-root>` | `bash ./scripts/validate_bundle.sh` | нет |
 
 ## Что внутри
 
@@ -50,6 +80,8 @@ GitHub-ready набор для агентной работы с `Yandex Direct`,
 
 ## Быстрый старт
 
+Все команды в этом разделе запускать из `<repo-root>`.
+
 ### 1. Установка для Codex
 
 ```bash
@@ -61,6 +93,8 @@ bash ./plugins/yandex-direct-for-all/scripts/install_codex_bundle.sh
 ```bash
 bash ./plugins/yandex-direct-for-all/scripts/install_claude_bundle.sh
 ```
+
+`install_claude_bundle.sh` сначала ставит bundle в `~/.codex`, затем копирует его в `~/.claude`.
 
 ### 3. Проверка сборки
 
@@ -95,6 +129,12 @@ bash ./plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service
 - `metrika` -> `manual-code` / `verification_code`
 - `audience` -> `manual-code` / `verification_code`
 
+Runtime-важно:
+
+- `direct` по умолчанию слушает `http://localhost:8080/callback`
+- launcher может открыть браузер автоматически
+- если local callback неудобен, используйте two-step path через `--print-only --no-browser`
+
 Если нужен именно явный two-step `confirmation-code` flow:
 
 ```bash
@@ -107,11 +147,18 @@ bash ./plugins/yandex-direct-for-all/scripts/exchange_yandex_user_code.sh --serv
 - `docs/operator-auth-launchers.md`
 - `plugins/yandex-direct-for-all/docs/operator-auth-launchers.md`
 
-### 4.1. Optional env overrides
+### 4.1. Что реально обязательно по env
 
 `examples/yandex.env.example` больше не является обязательным шагом для получения user token в `Direct / Metrika / Audience`.
 
-Он нужен только если вы хотите:
+Матрица:
+
+- `Direct / Metrika / Audience`, default launcher path -> обязательных env нет
+- `Direct` runtime без launcher -> обычно `YD_TOKEN` и `YD_CLIENT_LOGIN`
+- `Wordstat` -> `YANDEX_WORDSTAT_TOKEN` и `YANDEX_WORDSTAT_CLIENT_PATH`
+- `Yandex Search API` -> `YANDEX_SEARCH_API_KEY` и `YANDEX_SEARCH_FOLDER_ID`
+
+Env-файл нужен только если вы хотите:
 
 - переопределить built-in public profile своим app
 - задать runtime env для уже полученных token
@@ -214,6 +261,7 @@ bash ./plugins/yandex-direct-for-all/scripts/exchange_yandex_user_code.sh --serv
 ## Документы
 
 - `AI_ONBOARDING.md` — короткий безопасный старт для нового ИИ-оператора.
+- `QUICKSTART.md` — минимальный deterministic path без лишних развилок.
 - `docs/component-inventory.md` — что именно собрано и откуда.
 - `docs/canonical-rule-pack.md` — собранный канон правил из реальных глобальных skills.
 - `docs/codex-plugin-build-notes.md` — как bundle собран под официальный Codex Plugins contract.
@@ -226,6 +274,8 @@ bash ./plugins/yandex-direct-for-all/scripts/exchange_yandex_user_code.sh --serv
 - `docs/yandex-audiences.md` — отдельные правила по `Yandex Audiences`.
 - `CONTRIBUTING.md` — что прогонять перед PR/push.
 - `SECURITY.md` — как обращаться с секретами и security-репортами.
+- `FAQ.md` — быстрые ответы на типовые вопросы первого запуска.
+- `LICENSE` — условия использования публичного репозитория.
 
 ## Что изменено относительно старого bundle
 

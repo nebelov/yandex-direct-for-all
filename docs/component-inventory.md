@@ -11,6 +11,18 @@
 | `roistat-reports-api` | отчёты `Roistat` только через API | `3` scripts + references |
 | `amocrm-api-control` | `amoCRM` OAuth/control + `Yandex Audiences` companion automation | `3` scripts + references |
 
+## Что реально обязательно по env
+
+- `Direct / Metrika / Audience`, default launcher path -> обязательных env нет
+- `Direct` runtime без launcher -> обычно `YD_TOKEN` и `YD_CLIENT_LOGIN`
+- `Wordstat` -> `YANDEX_WORDSTAT_TOKEN` и `YANDEX_WORDSTAT_CLIENT_PATH`
+- `Yandex Search API` -> `YANDEX_SEARCH_API_KEY` и `YANDEX_SEARCH_FOLDER_ID`
+- кастомный OAuth app -> соответствующие `*_OAUTH_CLIENT_ID` и при необходимости `*_OAUTH_CLIENT_SECRET`
+
+Канонический шаблон:
+
+- `plugins/yandex-direct-for-all/examples/yandex.env.example`
+
 ### MCP servers
 
 | Компонент | Назначение |

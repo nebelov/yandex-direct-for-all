@@ -38,11 +38,11 @@ Installed bundle into:
   mcp:    $TARGET_MCP
 
 Next:
-  1. Fill env vars from:
-     $PLUGIN_DIR/examples/yandex.env.example
-  2. Configure your MCP client using plugins/yandex-direct-for-all/.mcp.json
-  3. Validate with:
+  1. No manual .env is required for default Direct/Metrika/Audience OAuth.
+  2. Use $PLUGIN_DIR/examples/yandex.env.example only for overrides or Wordstat/Search API cloud auth.
+  3. Configure your MCP client using plugins/yandex-direct-for-all/.mcp.json
+  4. Validate with:
      bash "$PLUGIN_DIR/scripts/validate_bundle.sh"
-  4. Read bundle notes:
+  5. Read bundle notes:
      $PLUGIN_DIR/README.md
 EOF

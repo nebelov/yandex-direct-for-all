@@ -43,6 +43,8 @@
 
 ## Базовые команды
 
+Все команды ниже запускать из `<repo-root>`.
+
 Direct:
 
 ```bash
@@ -81,6 +83,15 @@ bash ./plugins/yandex-direct-for-all/scripts/exchange_yandex_user_code.sh \
 - `./.codex/auth/<service>_oauth_pending.json`
 
 И второй шаг берёт из неё `client_id`, `redirect_uri` и `code_verifier`, так что руками ничего дописывать не надо.
+
+## Troubleshooting
+
+| Симптом | Что это значит | Что делать |
+|---|---|---|
+| Браузер не должен открываться автоматически | нужен non-interactive запуск | добавить `--print-only --no-browser` |
+| `direct` не может завершить local callback | не подходит `localhost:8080` или redirect не зарегистрирован | перейти на two-step flow |
+| Есть token, но нет `*_oauth_preflight.json` | auth не завершён operationally | повторить launcher или отдельно прогнать preflight |
+| `Wordstat` не работает через этот launcher | выбрана не та auth-модель | перейти к `docs/oauth-and-app-setup.md` |
 
 ## Что появляется на диске
 

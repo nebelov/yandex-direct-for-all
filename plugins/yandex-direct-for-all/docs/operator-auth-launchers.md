@@ -37,6 +37,8 @@
 
 ## Базовый запуск
 
+Все команды ниже запускать из `<plugin-root>`, где `<plugin-root>` = корень `plugins/yandex-direct-for-all`.
+
 Direct:
 
 ```bash
@@ -75,6 +77,15 @@ bash ./scripts/exchange_yandex_user_code.sh \
 - `./.codex/auth/<service>_oauth_pending.json`
 
 Так что второй шаг не требует руками передавать `client_id`, `redirect_uri` или `code_verifier`.
+
+## Troubleshooting
+
+| Симптом | Что это значит | Что делать |
+|---|---|---|
+| Браузер не должен открываться автоматически | нужен non-interactive запуск | добавить `--print-only --no-browser` |
+| `direct` не может завершить local callback | не подходит `localhost:8080` или redirect не зарегистрирован | перейти на two-step flow |
+| Есть token, но нет `*_oauth_preflight.json` | auth не завершён operationally | повторить launcher или отдельно прогнать preflight |
+| `Wordstat` не работает через этот launcher | выбрана не та auth-модель | перейти к `docs/oauth-and-app-setup.md` |
 
 ## Что создаётся
 

@@ -32,31 +32,13 @@
 - `skills/yandex-performance-ops/scripts/metrika/utm_report.sh`
 - `skills/yandex-performance-ops/scripts/metrika/search_engines.sh`
 
-## Required env surface
+## Env matrix
 
-- `YD_TOKEN`
-- `YD_CLIENT_LOGIN`
-- `YD_SANDBOX`
-- `YD_OUTPUT_DIR`
-- `YANDEX_OAUTH_CLIENT_ID`
-- `YANDEX_OAUTH_CLIENT_SECRET`
-- `YANDEX_OAUTH_REDIRECT_URI`
-- `YANDEX_AUTH_OUTPUT_DIR`
-- `YANDEX_DIRECT_OAUTH_CLIENT_ID`
-- `YANDEX_DIRECT_OAUTH_CLIENT_SECRET`
-- `YANDEX_METRIKA_OAUTH_CLIENT_ID`
-- `YANDEX_METRIKA_OAUTH_CLIENT_SECRET`
-- `YANDEX_AUDIENCE_OAUTH_CLIENT_ID`
-- `YANDEX_AUDIENCE_OAUTH_CLIENT_SECRET`
-- `YANDEX_WORDSTAT_TOKEN`
-- `YANDEX_WORDSTAT_CLIENT_PATH`
-- `SEARCH_API_KEY`
-- `FOLDER_ID`
-- `YANDEX_SEARCH_API_KEY`
-- `YANDEX_SEARCH_FOLDER_ID`
-- `YANDEX_METRIKA_TOKEN`
-- `YANDEX_METRIKA_COUNTER_ID`
-- `YANDEX_AUDIENCE_TOKEN`
+- `Direct / Metrika / Audience`, default launcher path -> обязательных env нет
+- `Direct` runtime без launcher -> обычно `YD_TOKEN` и `YD_CLIENT_LOGIN`
+- `Wordstat` -> `YANDEX_WORDSTAT_TOKEN` и `YANDEX_WORDSTAT_CLIENT_PATH`
+- `Yandex Search API` -> `YANDEX_SEARCH_API_KEY` и `YANDEX_SEARCH_FOLDER_ID`
+- кастомный OAuth app -> соответствующие `*_OAUTH_CLIENT_ID` и при необходимости `*_OAUTH_CLIENT_SECRET`
 
 Шаблон лежит в `../examples/yandex.env.example`.
 
