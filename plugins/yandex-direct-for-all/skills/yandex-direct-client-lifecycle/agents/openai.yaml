@@ -1,0 +1,6 @@
+interface:
+  display_name: "Yandex Direct Lifecycle"
+  short_description: "Onboard Yandex Direct clients end-to-end"
+  default_prompt: "Use $yandex-direct-client-lifecycle to onboard a new Yandex Direct client, build a reusable knowledge base, and prepare a research-backed proposal."
+policy:
+  allow_implicit_invocation: true

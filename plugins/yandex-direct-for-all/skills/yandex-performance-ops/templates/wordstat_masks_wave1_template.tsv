@@ -1,0 +1,3 @@
+mask	level	cluster	intent	priority	source	status	rationale	note
+example-root	L1	general	target	high	product_map	draft	root semantic mask	
+example product	L2	general	target	high	product_map	draft	product mask	

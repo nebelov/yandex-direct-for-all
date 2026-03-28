@@ -1,0 +1,48 @@
+{
+  "name": "yandex-direct-for-all",
+  "version": "0.2.0",
+  "description": "Self-contained Codex plugin for Yandex Direct, Wordstat, Metrika, Roistat, and Yandex Search workflows.",
+  "author": {
+    "name": "Vitaliy Travin",
+    "email": "replace-before-publish@example.com",
+    "url": "https://github.com/your-org/yandex-direct-for-all"
+  },
+  "homepage": "https://github.com/your-org/yandex-direct-for-all",
+  "repository": "https://github.com/your-org/yandex-direct-for-all",
+  "license": "MIT",
+  "keywords": [
+    "yandex-direct",
+    "wordstat",
+    "metrika",
+    "roistat",
+    "yandex-search",
+    "mcp",
+    "marketing",
+    "codex-plugin"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Yandex Direct For All",
+    "shortDescription": "Portable Direct, Wordstat, Metrika and Roistat ops bundle.",
+    "longDescription": "Repo-local Codex plugin with bundled skills, MCP servers, templates, docs, and install scripts for Yandex performance marketing workflows.",
+    "developerName": "Vitaliy Travin",
+    "category": "Marketing",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/your-org/yandex-direct-for-all",
+    "privacyPolicyURL": "https://github.com/your-org/yandex-direct-for-all",
+    "termsOfServiceURL": "https://github.com/your-org/yandex-direct-for-all",
+    "defaultPrompt": [
+      "Собери Wordstat wave и подготовь human-readable report.",
+      "Проверь кампании Direct и собери safe apply-pack.",
+      "Собери Roistat report-pack без использования UI."
+    ],
+    "brandColor": "#D62828",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "screenshots": []
+  }
+}
