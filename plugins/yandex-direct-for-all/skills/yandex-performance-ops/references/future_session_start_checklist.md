@@ -104,7 +104,7 @@
 
 Если клиентский cloud path не поднят, сначала проверять bridge-path:
 
-1. `/Users/vitalijtravin/.codex/credentials/yandex-cloud-search-tenevoy.json`
+1. локальный private credentials file вне git
 2. `references/yandex_cloud_search_handoffs.md`
 
 ## 6. Клиентский веб-отчет

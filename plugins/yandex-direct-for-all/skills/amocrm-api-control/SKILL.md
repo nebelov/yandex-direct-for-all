@@ -48,7 +48,7 @@ Use it only if the UI accepts it. If amoCRM rejects non-SSL localhost in this ac
 Examples:
 
 ```bash
-python3 /Users/vitalijtravin/.codex/skills/amocrm-api-control/scripts/exchange_amocrm_token.py \
+python3 scripts/exchange_amocrm_token.py \
   --subdomain pksclimat2 \
   --client-id XXX \
   --client-secret XXX \
@@ -58,7 +58,7 @@ python3 /Users/vitalijtravin/.codex/skills/amocrm-api-control/scripts/exchange_a
 ```
 
 ```bash
-python3 /Users/vitalijtravin/.codex/skills/amocrm-api-control/scripts/exchange_amocrm_token.py \
+python3 scripts/exchange_amocrm_token.py \
   --subdomain pksclimat2 \
   --client-id XXX \
   --client-secret XXX \
@@ -80,7 +80,7 @@ Use this when you need a temporary local callback URL for the authorization-code
 Example:
 
 ```bash
-python3 /Users/vitalijtravin/.codex/skills/amocrm-api-control/scripts/fetch_amocrm_schema.py \
+python3 scripts/fetch_amocrm_schema.py \
   --credentials /abs/path/amocrm_oauth_credentials.json \
   --output-dir /abs/path/amocrm-schema
 ```

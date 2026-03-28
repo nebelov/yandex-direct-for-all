@@ -10,9 +10,9 @@
 
 Source of truth:
 
-1. `/Users/vitalijtravin/.codex/skills/yandex-performance-ops/references/wordstat_collection_framework.md`
-2. `/Users/vitalijtravin/Downloads/свой сервис картинок нано банана 2/export/yandex-direct-skill-portable-20260312/current-project/.claude/skills/yandex-wordstat/SKILL.md`
-3. `/Users/vitalijtravin/Downloads/свой сервис картинок нано банана 2/export/yandex-direct-skill-portable-20260312/sources/kartinium/.claude/skills/direct-search-semantics/SKILL.md`
+1. `../../yandex-performance-ops/references/wordstat_collection_framework.md`
+2. `../../yandex-performance-ops/SKILL.md`
+3. текущие public collectors и templates из этого репозитория
 
 Обязательные правила:
 
@@ -66,7 +66,7 @@ Source of truth:
 
 Source of truth:
 
-1. `/Users/vitalijtravin/Downloads/свой сервис картинок нано банана 2/export/yandex-direct-skill-portable-20260312/sources/kartinium/.claude/skills/direct-search-semantics/SKILL.md`
+1. `../../yandex-performance-ops/SKILL.md`
 
 Обязательные правила:
 
@@ -79,7 +79,7 @@ Source of truth:
 
 Source of truth:
 
-1. `/Users/vitalijtravin/Downloads/свой сервис картинок нано банана 2/export/yandex-direct-skill-portable-20260312/sources/kartinium/.claude/skills/yandex-direct/SKILL.md`
+1. `../../yandex-performance-ops/SKILL.md`
 
 Обязательные правила:
 

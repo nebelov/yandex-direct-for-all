@@ -190,7 +190,7 @@ description: Use when the task is to inspect existing Roistat saved reports thro
 
 Краткий навигатор лежит в:
 
-- [references/reporting-endpoints.md](/Users/vitalijtravin/.codex/skills/roistat-reports-api/references/reporting-endpoints.md)
+- [references/reporting-endpoints.md](references/reporting-endpoints.md)
 
 ### 2. Сними discovery-layer кабинета
 

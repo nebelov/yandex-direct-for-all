@@ -24,12 +24,8 @@
 
 ## Подтверждающие remote-источники
 
-- `/Users/remote-mac/ads/tenevoy/claude/docs/WORDSTAT_AND_COMPETITORS_OFFICIAL_PATH_20260308.md`
-- `/Users/remote-mac/ads/tenevoy/claude/docs/COMPETITOR_LAYER_LIVE_PROOF_20260308.md`
-- `/Users/remote-mac/ads/tenevoy/direct-orchestrator/scripts/collector_competitor_scan.py`
-- `/Users/remote-mac/ads/tenevoy/direct-orchestrator/scripts/local_competitor_scan.py`
-- `/Users/remote-mac/ads/tenevoy/direct-orchestrator/scripts/local_competitor_scan_matrix.py`
-- `/Users/remote-mac/ads/tenevoy/direct-orchestrator/tests/unit/test_competitors.py`
+- подтвержденные live notes и private proof-артефакты хранятся вне этого публичного репозитория
+- в public bundle опираться на текущие collector scripts и текущий skill-канон
 
 ## Что именно доказано на Теневом
 

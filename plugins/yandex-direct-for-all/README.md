@@ -19,6 +19,15 @@ Self-contained plugin-root для `Codex`, который упаковывает
 - `docs/` — self-contained notes по bundle
 - `examples/yandex.env.example` — шаблон env-переменных
 
+## Prerequisites
+
+- `python3`
+- `node`
+- `rsync`
+- Python package `requests`
+- браузер для OAuth
+- для `direct` default path: свободный `localhost:8080`
+
 ## Где скрипты парсинга данных
 
 Они есть в bundle в двух формах:
@@ -59,6 +68,8 @@ Self-contained plugin-root для `Codex`, который упаковывает
 - `docs/auth-model-matrix.md`
 
 ## Быстрый старт
+
+Все команды ниже запускать из `<plugin-root>`.
 
 1. Если нужен новый user token для `Direct/Metrika/Audience`, default path такой:
 
@@ -111,6 +122,8 @@ bash ./scripts/validate_bundle.sh
 bash ./scripts/install_codex_bundle.sh
 bash ./scripts/install_claude_bundle.sh
 ```
+
+`install_claude_bundle.sh` сначала ставит bundle в `~/.codex`, затем копирует его в `~/.claude`.
 
 ## Документы
 

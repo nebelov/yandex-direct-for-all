@@ -246,8 +246,8 @@ python3 ~/.codex/skills/yandex-direct-client-lifecycle/scripts/build_followup_jo
 6. Канонический batch collector для этого слоя:
    - `scripts/yandex_search_ads_batch.py`
 6.1. Если этот path уже был локализован глобально, не искать его заново по remote-машинам. Сначала проверять:
-   - `/Users/vitalijtravin/.codex/credentials/yandex-cloud-search-tenevoy.json`
-   - `~/.codex/skills/yandex-performance-ops/references/yandex_cloud_search_handoffs.md`
+   - локальный private credentials file вне git
+   - `../yandex-performance-ops/references/yandex_cloud_search_handoffs.md`
 7. Этот слой не закрывает автоматически `РСЯ`; для `РСЯ` нужен отдельный подтвержденный официальный источник.
 8. Если в поисковых рекламных объявлениях всплывают спорные хосты, их нельзя механически записывать в карту конкурентов.
    Сначала нужно посмотреть фактический `source_url` и отнести сущность к одному из слоев:

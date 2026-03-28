@@ -8,6 +8,8 @@ FORCE="${1:-}"
 CODEX_TARGET="${CODEX_HOME:-$HOME/.codex}"
 CLAUDE_TARGET="${CLAUDE_HOME:-$HOME/.claude}"
 
+echo "install_claude_bundle.sh also installs the bundle into $CODEX_TARGET before copying it into $CLAUDE_TARGET."
+
 bash "$SCRIPT_DIR/install_codex_bundle.sh" "$FORCE"
 
 copy_dir() {
@@ -38,4 +40,7 @@ cat <<EOF
 Installed bundle into:
   Codex:  $CODEX_TARGET
   Claude: $CLAUDE_TARGET
+
+Note:
+  install_claude_bundle.sh intentionally updates both ~/.codex and ~/.claude.
 EOF

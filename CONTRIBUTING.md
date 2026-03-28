@@ -41,3 +41,9 @@ If you change auth behavior, update all of:
 ## Validation expectation
 
 Changes are not publish-ready until `validate_bundle.sh` passes.
+
+## Release checklist
+
+- update public metadata in `plugins/yandex-direct-for-all/.codex-plugin/plugin.json`
+- keep root docs and plugin-root docs consistent
+- verify no private paths, hostnames or handoff files leaked into public tree

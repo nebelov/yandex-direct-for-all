@@ -4,11 +4,11 @@
   "description": "Self-contained Codex plugin for Yandex Direct, Wordstat, Metrika, Roistat, and Yandex Search workflows.",
   "author": {
     "name": "Vitaliy Travin",
-    "email": "replace-before-publish@example.com",
-    "url": "https://github.com/your-org/yandex-direct-for-all"
+    "email": "vitalijtravin@gmail.com",
+    "url": "https://github.com/nebelov/yandex-direct-for-all"
   },
-  "homepage": "https://github.com/your-org/yandex-direct-for-all",
-  "repository": "https://github.com/your-org/yandex-direct-for-all",
+  "homepage": "https://github.com/nebelov/yandex-direct-for-all",
+  "repository": "https://github.com/nebelov/yandex-direct-for-all",
   "license": "MIT",
   "keywords": [
     "yandex-direct",
@@ -32,9 +32,9 @@
       "Interactive",
       "Write"
     ],
-    "websiteURL": "https://github.com/your-org/yandex-direct-for-all",
-    "privacyPolicyURL": "https://github.com/your-org/yandex-direct-for-all",
-    "termsOfServiceURL": "https://github.com/your-org/yandex-direct-for-all",
+    "websiteURL": "https://github.com/nebelov/yandex-direct-for-all",
+    "privacyPolicyURL": "https://github.com/nebelov/yandex-direct-for-all/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/nebelov/yandex-direct-for-all/blob/main/TERMS.md",
     "defaultPrompt": [
       "Собери Wordstat wave и подготовь human-readable report.",
       "Проверь кампании Direct и собери safe apply-pack.",
