@@ -19,6 +19,20 @@ Self-contained plugin-root для `Codex`, который упаковывает
 - `docs/` — self-contained notes по bundle
 - `examples/yandex.env.example` — шаблон env-переменных
 
+## Где skills
+
+Skills уже bundled внутри plugin:
+
+- `skills/yandex-performance-ops`
+- `skills/yandex-direct-client-lifecycle`
+- `skills/roistat-reports-api`
+- `skills/amocrm-api-control`
+
+Смотреть:
+
+- `skills/README.md`
+- `docs/skill-index.md`
+
 ## Prerequisites
 
 - `python3`
@@ -66,6 +80,8 @@ Self-contained plugin-root для `Codex`, который упаковывает
 - `docs/operator-auth-launchers.md`
 - `docs/oauth-and-app-setup.md`
 - `docs/auth-model-matrix.md`
+
+Built-in `client_id` в `config/yandex_oauth_public_profiles.json` опубликованы намеренно для shared login через ваши approved apps. `client_secret` в bundle не публикуется.
 
 ## Быстрый старт
 
@@ -133,6 +149,7 @@ bash ./scripts/install_claude_bundle.sh
 - `docs/operator-auth-launchers.md`
 - `docs/oauth-and-app-setup.md`
 - `docs/auth-model-matrix.md`
+- `docs/skill-index.md`
 
 ## Важное
 
