@@ -2,6 +2,9 @@
 
 Use this when connecting a new client/project to `yandex-performance-ops`.
 
+Path contract:
+- `<plugin-root>` = корень bundled plugin, например `./plugins/yandex-direct-for-all` или `~/.codex/plugins/yandex-direct-for-all`
+
 ## Required local files
 
 1. `./.codex/yandex-performance-client.json`
@@ -13,6 +16,7 @@ Use this when connecting a new client/project to `yandex-performance-ops`.
    - `negative_axioms.md`
    - `copy-map.json`
    - `yougile-columns.json`
+   - `yougile-board-presets.json`
 
 ## Must adapt before any real work
 
@@ -63,10 +67,10 @@ Check CLI/env for:
 ## Verification
 
 1. `rg -n "oldbrand|olddomain|oldprice|oldgoal" .`
-2. `python3 ~/.codex/skills/yandex-performance-ops/scripts/init_client_context.py --help`
-3. `python3 ~/.codex/skills/yandex-performance-ops/scripts/collect_all.py --help`
-4. `python3 ~/.codex/skills/yandex-performance-ops/scripts/build_manual_final_pack.py --help`
-5. `python3 ~/.codex/skills/yandex-performance-ops/scripts/deploy_search_campaigns.py --help`
+2. `python3 <plugin-root>/skills/yandex-performance-ops/scripts/init_client_context.py --help`
+3. `python3 <plugin-root>/skills/yandex-performance-ops/scripts/collect_all.py --help`
+4. `python3 <plugin-root>/skills/yandex-performance-ops/scripts/build_manual_final_pack.py --help`
+5. `python3 <plugin-root>/skills/yandex-performance-ops/scripts/deploy_search_campaigns.py --help`
 
 ## Red lines
 

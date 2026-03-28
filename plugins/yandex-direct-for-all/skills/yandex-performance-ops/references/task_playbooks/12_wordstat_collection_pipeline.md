@@ -1,5 +1,8 @@
 # 12. Wordstat Collection Pipeline
 
+Path contract:
+- `<plugin-root>` = корень bundled plugin, например `./plugins/yandex-direct-for-all` или `~/.codex/plugins/yandex-direct-for-all`
+
 Используй этот playbook, когда задача звучит как:
 - собрать новую семантику;
 - собрать ключи через Wordstat;
@@ -27,11 +30,11 @@
    - Wordstat associations.
 4. Пройти Wordstat preflight:
 ```bash
-bash ~/.codex/skills/yandex-performance-ops/scripts/wordstat_preflight.sh
+bash <plugin-root>/skills/yandex-performance-ops/scripts/wordstat_preflight.sh
 ```
 5. Запустить collector:
 ```bash
-node ~/.codex/skills/yandex-performance-ops/scripts/wordstat_collect_wave.js \
+node <plugin-root>/skills/yandex-performance-ops/scripts/wordstat_collect_wave.js \
   --masks-file semantics/<product>/01-masks-wave1.tsv \
   --output-dir semantics/<product>/raw/wordstat_wave1 \
   --num-phrases 2000 --dynamics true \

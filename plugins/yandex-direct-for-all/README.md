@@ -9,6 +9,13 @@ Self-contained plugin-root для `Codex`, который упаковывает
 - `Yandex Search API`
 - `Yandex Audiences` как companion layer
 
+## Path Contract
+
+- `<plugin-root>` = корень этого plugin bundle.
+- `<repo-root>` = корень репозитория, где `<plugin-root>` лежит по пути `./plugins/yandex-direct-for-all`.
+- Repo-local `Codex` usage = основной путь через `<repo-root>/.agents/plugins/marketplace.json`.
+- `bash ./scripts/install_codex_bundle.sh` = optional personal home-install в `${CODEX_HOME:-~/.codex}/plugins/yandex-direct-for-all`.
+
 ## Что внутри
 
 - `.codex-plugin/plugin.json` — manifest плагина
@@ -35,8 +42,8 @@ Skills уже bundled внутри plugin:
 
 ## Prerequisites
 
-- `python3`
-- `node`
+- `python3` (`validated on 3.11`)
+- `node` (`validated on Node 20`)
 - `rsync`
 - Python package `requests`
 - браузер для OAuth
@@ -81,7 +88,7 @@ Skills уже bundled внутри plugin:
 - `docs/oauth-and-app-setup.md`
 - `docs/auth-model-matrix.md`
 
-Built-in `client_id` в `config/yandex_oauth_public_profiles.json` опубликованы намеренно для shared login через ваши approved apps. `client_secret` в bundle не публикуется.
+Built-in `client_id` в `config/yandex_oauth_public_profiles.json` опубликованы намеренно как policy choice именно этого репозитория для shared login через approved apps. `client_secret` в bundle не публикуется.
 
 ## Быстрый старт
 
@@ -126,26 +133,28 @@ bash ./scripts/exchange_yandex_user_code.sh --service metrika --code <confirmati
 bash ./scripts/validate_bundle.sh
 ```
 
-6. Для установки в Codex использовать repo marketplace из корня проекта:
+6. Для repo-local использования в Codex ничего копировать не нужно:
 
-```bash
-../../.agents/plugins/marketplace.json
-```
+- plugin entry уже лежит в `<repo-root>/.agents/plugins/marketplace.json`
+- source path там = `./plugins/yandex-direct-for-all`
+- после clone/update repo перезапустить `Codex`, чтобы он перечитал marketplace
 
-7. Для копирования навыков и MCP в домашние директории:
+7. Для personal home-install / Claude compatibility:
 
 ```bash
 bash ./scripts/install_codex_bundle.sh
 bash ./scripts/install_claude_bundle.sh
 ```
 
-`install_claude_bundle.sh` сначала ставит bundle в `~/.codex`, затем копирует его в `~/.claude`.
+`install_codex_bundle.sh` создаёт или обновляет managed personal home-local plugin в `${CODEX_HOME:-~/.codex}/plugins/yandex-direct-for-all` и обновляет `~/.agents/plugins/marketplace.json` на фактический installed plugin path.
+`install_claude_bundle.sh` сначала refresh-ит этот Codex home-install, затем зеркалит bundle в `${CLAUDE_HOME:-~/.claude}/plugins/yandex-direct-for-all`.
 
 ## Документы
 
 - `docs/component-inventory.md`
 - `docs/codex-plugin-build-notes.md`
 - `docs/data-collection-scripts.md`
+- `docs/install-paths.md`
 - `docs/operator-auth-launchers.md`
 - `docs/oauth-and-app-setup.md`
 - `docs/auth-model-matrix.md`

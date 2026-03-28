@@ -2,7 +2,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { fileURLToPath, pathToFileURL } = require('url');
+const { pathToFileURL } = require('url');
 
 function parseArgs(argv) {
   const args = {};
@@ -51,7 +51,8 @@ function wordCount(mask) {
 function candidateClientPaths() {
   const envPath = process.env.YANDEX_WORDSTAT_CLIENT_PATH;
   const home = os.homedir();
-  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+  const scriptDir = __dirname;
+  const pluginRoot = path.resolve(scriptDir, '../../..');
   const dynamicHomePaths = [];
   try {
     for (const entry of fs.readdirSync(home, { withFileTypes: true })) {
@@ -64,8 +65,12 @@ function candidateClientPaths() {
 
   return [
     envPath,
-    path.resolve(scriptDir, '../../mcp/yandex-wordstat/dist/client.js'),
+    path.join(pluginRoot, 'mcp/yandex-wordstat/dist/client.js'),
+    path.join(home, '.codex/plugins/yandex-direct-for-all/mcp/yandex-wordstat/dist/client.js'),
+    path.join(home, '.claude/plugins/yandex-direct-for-all/mcp/yandex-wordstat/dist/client.js'),
     path.join(home, '.codex/mcp/yandex-wordstat/dist/client.js'),
+    path.join(home, '.claude/mcp/yandex-wordstat/dist/client.js'),
+    path.join(process.cwd(), 'plugins/yandex-direct-for-all/mcp/yandex-wordstat/dist/client.js'),
     path.join(process.cwd(), 'mcp/yandex-wordstat/dist/client.js'),
     path.join(home, 'mcp/yandex-wordstat/dist/client.js'),
     ...dynamicHomePaths
@@ -81,7 +86,7 @@ async function loadWordstatClientClass() {
     }
   }
   throw new Error(
-    'Wordstat client not found. Set YANDEX_WORDSTAT_CLIENT_PATH or install bundled MCP client into ~/.codex/mcp/yandex-wordstat.'
+    'Wordstat client not found. Set YANDEX_WORDSTAT_CLIENT_PATH or keep the bundled client inside <plugin-root>/mcp/yandex-wordstat/dist/client.js.'
   );
 }
 

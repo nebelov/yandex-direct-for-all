@@ -3,29 +3,26 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-FORCE="${1:-}"
 
 CODEX_TARGET="${CODEX_HOME:-$HOME/.codex}"
 CLAUDE_TARGET="${CLAUDE_HOME:-$HOME/.claude}"
+CLAUDE_PLUGIN="$CLAUDE_TARGET/plugins/yandex-direct-for-all"
 
 echo "install_claude_bundle.sh also installs the bundle into $CODEX_TARGET before copying it into $CLAUDE_TARGET."
 
-bash "$SCRIPT_DIR/install_codex_bundle.sh" "$FORCE"
+bash "$SCRIPT_DIR/install_codex_bundle.sh"
 
 copy_dir() {
   local src="$1"
   local dst="$2"
-  if [[ -e "$dst" && "$FORCE" != "--force" ]]; then
-    echo "ERROR: target already exists: $dst"
-    echo "Re-run with --force to overwrite."
-    exit 2
-  fi
   rm -rf "$dst"
   mkdir -p "$(dirname "$dst")"
   rsync -a --exclude '__pycache__' --exclude '.venv' "$src/" "$dst/"
 }
 
-mkdir -p "$CLAUDE_TARGET/skills" "$CLAUDE_TARGET/mcp"
+mkdir -p "$CLAUDE_TARGET/skills" "$CLAUDE_TARGET/mcp" "$(dirname "$CLAUDE_PLUGIN")"
+
+copy_dir "$PLUGIN_DIR" "$CLAUDE_PLUGIN"
 
 copy_dir "$PLUGIN_DIR/skills/yandex-performance-ops" "$CLAUDE_TARGET/skills/yandex-performance-ops"
 copy_dir "$PLUGIN_DIR/skills/yandex-direct-client-lifecycle" "$CLAUDE_TARGET/skills/yandex-direct-client-lifecycle"
@@ -40,7 +37,8 @@ cat <<EOF
 Installed bundle into:
   Codex:  $CODEX_TARGET
   Claude: $CLAUDE_TARGET
+  Claude plugin root: $CLAUDE_PLUGIN
 
 Note:
-  install_claude_bundle.sh intentionally updates both ~/.codex and ~/.claude.
+  install_claude_bundle.sh intentionally refreshes both $CODEX_TARGET and $CLAUDE_TARGET.
 EOF

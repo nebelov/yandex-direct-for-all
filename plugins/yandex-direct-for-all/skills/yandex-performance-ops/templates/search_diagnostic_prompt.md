@@ -4,6 +4,9 @@
 > Скоуп: ВСЕГДА все кампании типа ({ROISTAT_MARKER_LEVEL_1} + search) и ({ROISTAT_MARKER_LEVEL_1} + rsya), НЕ одна конкретная
 > Источник конверсий: Roistat (первичный), Reports API (вторичный для SQR и площадок)
 
+Path contract:
+- `<plugin-root>` = корень bundled plugin, например `./plugins/yandex-direct-for-all` или `~/.codex/plugins/yandex-direct-for-all`
+
 ## ТРИГГЕР
 
 Пользователь сообщает цифры за день/период по поиску (расход, лиды, CPA) и просит разобраться.
@@ -12,8 +15,8 @@
 
 ## ПЕРЕД ЗАПУСКОМ: Предпосылки (ОБЯЗАТЕЛЬНО!)
 
-1. `chmod +x ~/.codex/skills/yandex-performance-ops/scripts/roistat_query.sh` — скрипт может потерять +x
-2. `change_tracker.py` лежит в `~/.codex/skills/yandex-performance-ops/scripts/`, НЕ в `scripts/` проекта
+1. `chmod +x <plugin-root>/skills/yandex-performance-ops/scripts/roistat_query.sh` — скрипт может потерять +x
+2. `change_tracker.py` лежит в `<plugin-root>/skills/yandex-performance-ops/scripts/`, а не в `scripts/` клиентского проекта
 3. В background bash: использовать ПОЛНЫЕ пути (НЕ `~`), НЕ добавлять `sleep` в конец
 4. Reports API: retry loop (201→202→200), минимум 5 попыток с sleep 5
 
@@ -26,7 +29,8 @@
 ### 1-2. Roistat: кампании + группы за день
 
 ```bash
-SCRIPT=~/.codex/skills/yandex-performance-ops/scripts/roistat_query.sh
+PLUGIN_ROOT="/absolute/path/to/plugins/yandex-direct-for-all"
+SCRIPT="$PLUGIN_ROOT/skills/yandex-performance-ops/scripts/roistat_query.sh"
 OUT="data/search_YYMMDD"
 
 # Кампании
@@ -72,7 +76,7 @@ echo '{"dimensions":["device_type"],"metrics":["visits","leads","sales","revenue
 ### 6. История изменений — change_tracker.py
 
 ```bash
-python3 ~/.codex/skills/yandex-performance-ops/scripts/change_tracker.py \
+python3 <plugin-root>/skills/yandex-performance-ops/scripts/change_tracker.py \
   --token "$TOKEN" --login "$LOGIN" --days 7 \
   --data-dir ./data --output data/search_YYMMDD/changes_report.html
 ```
@@ -235,7 +239,7 @@ Roistat JSON и TSV читать вручную по сохранённым raw-
 | 3 | `sleep` в конце background команды ломает runner | Не добавлять sleep в background |
 | 4 | Roistat `dimensions=["date"]` + filter search → internal_error | Использовать Reports API для daily |
 | 5 | Reports API 201/202 = отчёт строится | Retry loop: 5 попыток, sleep 5 |
-| 6 | `change_tracker.py` не в scripts/ проекта | Полный путь: `~/.codex/skills/yandex-performance-ops/scripts/` |
+| 6 | `change_tracker.py` не в scripts/ проекта | Полный путь: `<plugin-root>/skills/yandex-performance-ops/scripts/` |
 | 7 | Roistat order/list "Filter is invalid" | Неясно, API нестабилен. Альтернатива: analytics dimensions |
 | 8 | Roistat JSON: dimensions = dict (не list!) | `it['dimensions']['marker_level_3']['value']` |
 | 9 | Рост расхода после создания новых групп | ВСЕГДА проверять новые группы в первые 1-3 дня |

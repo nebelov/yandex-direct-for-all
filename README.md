@@ -21,16 +21,24 @@ GitHub-ready набор для агентной работы с `Yandex Direct`,
 
 - Новый ИИ-оператор: `AI_ONBOARDING.md`
 - Самый короткий безопасный запуск: `QUICKSTART.md`
+- Развилка install-paths без путаницы: `docs/install-paths.md`
 - Типовые вопросы первого запуска: `FAQ.md`
 - Auth-модели без путаницы: `docs/auth-model-matrix.md`
 - Карта bundled skills: `docs/skill-index.md`
 - Operator OAuth launchers: `docs/operator-auth-launchers.md`
 - Полный inventory collector-скриптов: `plugins/yandex-direct-for-all/docs/data-collection-scripts.md`
 
+## Path Contract
+
+- `<repo-root>` = корень этого репозитория.
+- `<plugin-root>` = `<repo-root>/plugins/yandex-direct-for-all`.
+- Для `Codex` основной путь = repo-local plugin через `./.agents/plugins/marketplace.json`.
+- `install_codex_bundle.sh` = optional personal home-install в `${CODEX_HOME:-~/.codex}/plugins` + `~/.agents/plugins/marketplace.json`; он не нужен, если вы работаете прямо из этого repo.
+
 ## Prerequisites
 
-- `python3`
-- `node` и `npm`
+- `python3` (`validated on 3.11`)
+- `node` и `npm` (`validated on Node 20`)
 - `rsync`
 - Python package `requests`
 - браузер для OAuth
@@ -38,11 +46,12 @@ GitHub-ready набор для агентной работы с `Yandex Direct`,
 
 ## Режимы запуска
 
-| Что хотите сделать | Откуда запускать | Команда | Нужен restart |
+| Что хотите сделать | Откуда запускать | Как сделать | Нужен restart |
 |---|---|---|---|
 | Проверить bundle | `<repo-root>` | `bash ./plugins/yandex-direct-for-all/scripts/validate_bundle.sh` | нет |
-| Поставить bundle в `Codex` | `<repo-root>` | `bash ./plugins/yandex-direct-for-all/scripts/install_codex_bundle.sh` | обычно да |
-| Поставить bundle в `Claude` | `<repo-root>` | `bash ./plugins/yandex-direct-for-all/scripts/install_claude_bundle.sh` | да |
+| Подключить repo-local plugin в `Codex` | `<repo-root>` | Ничего не копировать: использовать `./.agents/plugins/marketplace.json`, затем перезапустить `Codex` после clone/update | обычно да |
+| Сделать personal home-install в `Codex` | `<repo-root>` | `bash ./plugins/yandex-direct-for-all/scripts/install_codex_bundle.sh` | да |
+| Сделать home-install в `Claude` | `<repo-root>` | `bash ./plugins/yandex-direct-for-all/scripts/install_claude_bundle.sh` | да |
 | Получить token для `Direct` | `<repo-root>` | `bash ./plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service direct` | нет |
 | Получить token для `Metrika/Audience` | `<repo-root>` | `bash ./plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service metrika` | нет |
 | Работать только внутри plugin-root | `<plugin-root>` | `bash ./scripts/validate_bundle.sh` | нет |
@@ -98,27 +107,35 @@ Skill index:
 
 Все команды в этом разделе запускать из `<repo-root>`.
 
-### 1. Установка для Codex
+### 1. Repo-local plugin для Codex: рекомендованный путь
+
+- Держать repo как есть, не копируя plugin в home-директории.
+- Marketplace entry уже лежит в `./.agents/plugins/marketplace.json` и указывает на `./plugins/yandex-direct-for-all`.
+- После clone/update repo перезапустить `Codex`, чтобы он перечитал marketplace.
+
+### 2. Personal home-install для Codex: optional fallback
 
 ```bash
 bash ./plugins/yandex-direct-for-all/scripts/install_codex_bundle.sh
 ```
 
-### 2. Установка для Claude Code
+Этот скрипт создаёт или обновляет managed personal copy в `${CODEX_HOME:-~/.codex}/plugins/yandex-direct-for-all` и переписывает `~/.agents/plugins/marketplace.json` на фактический installed plugin path.
+
+### 3. Установка для Claude Code: optional compatibility path
 
 ```bash
 bash ./plugins/yandex-direct-for-all/scripts/install_claude_bundle.sh
 ```
 
-`install_claude_bundle.sh` сначала ставит bundle в `~/.codex`, затем копирует его в `~/.claude`.
+`install_claude_bundle.sh` сначала refresh-ит personal Codex home-install, затем зеркалит bundle в `${CLAUDE_HOME:-~/.claude}`.
 
-### 3. Проверка сборки
+### 4. Проверка сборки
 
 ```bash
 bash ./plugins/yandex-direct-for-all/scripts/validate_bundle.sh
 ```
 
-### 4. Zero-manual OAuth для Direct / Metrika / Audience
+### 5. Zero-manual OAuth для Direct / Metrika / Audience
 
 Для `Direct / Metrika / Audience` bundle теперь даёт готовый operator-flow:
 
@@ -163,7 +180,7 @@ bash ./plugins/yandex-direct-for-all/scripts/exchange_yandex_user_code.sh --serv
 - `docs/operator-auth-launchers.md`
 - `plugins/yandex-direct-for-all/docs/operator-auth-launchers.md`
 
-### 4.1. Что реально обязательно по env
+### 5.1. Что реально обязательно по env
 
 `examples/yandex.env.example` больше не является обязательным шагом для получения user token в `Direct / Metrika / Audience`.
 
@@ -180,7 +197,7 @@ Env-файл нужен только если вы хотите:
 - задать runtime env для уже полученных token
 - настроить отдельный `Wordstat / Search API` cloud layer
 
-### 5. Проверка структуры Codex plugin
+### 6. Проверка структуры Codex plugin
 
 Изучить собранный manifest и plugin notes:
 
@@ -244,14 +261,15 @@ Env-файл нужен только если вы хотите:
 
 ### Codex
 
-После `install_codex_bundle.sh` навыки доступны по ожидаемым путям в `~/.codex/skills`, а MCP-серверы — в `~/.codex/mcp`.
+Repo-local режим для `Codex` считать основным:
 
-Базовый порядок:
+1. открыть repo-root так, чтобы `Codex` видел `./.agents/plugins/marketplace.json`
+2. читать bundled entrypoints прямо из `<plugin-root>/skills/...`
+3. если задача onboarding/research — перейти в `<plugin-root>/skills/yandex-direct-client-lifecycle`
+4. если задача по отчётам — использовать `<plugin-root>/skills/roistat-reports-api`
+5. если задача про `audiences`/CRM-sync — дочитать `docs/yandex-audiences.md` и при необходимости подключить `<plugin-root>/skills/amocrm-api-control`
 
-1. прочитать `~/.codex/skills/yandex-performance-ops/SKILL.md`
-2. если задача onboarding/research — перейти в `yandex-direct-client-lifecycle`
-3. если задача по отчётам — использовать `roistat-reports-api`
-4. если задача про `audiences`/CRM-sync — дочитать `docs/yandex-audiences.md` и при необходимости подключить `amocrm-api-control`
+Если вы сознательно сделали personal home-install через `install_codex_bundle.sh`, тот же bundle дополнительно доступен в `${CODEX_HOME:-~/.codex}/plugins/yandex-direct-for-all` и зеркалах `skills/...` внутри `${CODEX_HOME:-~/.codex}`.
 
 ### Claude Code / Gemini CLI
 
@@ -278,6 +296,7 @@ Env-файл нужен только если вы хотите:
 
 - `AI_ONBOARDING.md` — короткий безопасный старт для нового ИИ-оператора.
 - `QUICKSTART.md` — минимальный deterministic path без лишних развилок.
+- `docs/install-paths.md` — чёткая развилка между repo-local Codex plugin, personal Codex install и Claude home-compat.
 - `docs/component-inventory.md` — что именно собрано и откуда.
 - `docs/canonical-rule-pack.md` — собранный канон правил из реальных глобальных skills.
 - `docs/codex-plugin-build-notes.md` — как bundle собран под официальный Codex Plugins contract.

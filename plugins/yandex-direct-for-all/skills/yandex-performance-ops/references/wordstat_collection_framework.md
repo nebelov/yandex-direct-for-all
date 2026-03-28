@@ -5,6 +5,11 @@
 Этот документ сам является глобальным каноном `Wordstat`-слоя для будущих сессий Codex.
 Локальные project docs могут только дополнять его client-specific терминологией и каталогом.
 
+Path contract:
+- `<plugin-root>` = корень этого bundle, где лежат `.codex-plugin/plugin.json`, `skills/`, `mcp/`, `scripts/`.
+- Repo-local пример: `./plugins/yandex-direct-for-all`
+- Home-compatible install пример: `~/.codex/plugins/yandex-direct-for-all` или `~/.claude/plugins/yandex-direct-for-all`
+
 ## Канон
 
 `СТРУКТУРА -> МАСКИ -> РЕВЬЮ МАСОК -> ПАРСИНГ СКРИПТОМ -> [полный успех] -> АНАЛИЗ -> ЧИСТКА -> ГРУППИРОВКА`
@@ -18,7 +23,7 @@
   - потом открывать только сохранённые `_summary.json`, `_manifest.json`, `.tsv`, `.md`;
   - не тянуть длинные raw JSON и полные stdout/stderr в контекст без причины;
 - competitor collection для exhaustive coverage начинается только после вручную валидированного keyword set.
-- на этом маке канонический launcher для Wordstat = `~/.codex/skills/yandex-performance-ops/scripts/wordstat_tool.sh`
+- канонический launcher для Wordstat = `<plugin-root>/skills/yandex-performance-ops/scripts/wordstat_tool.sh`
 - discovery order всегда такой:
   - global wrapper;
   - global `wordstat_preflight.sh` / `wordstat_collect_wave.js`;
@@ -141,9 +146,9 @@
 
 Примеры:
 ```bash
-bash ~/.codex/skills/yandex-performance-ops/scripts/wordstat_tool.sh where
-bash ~/.codex/skills/yandex-performance-ops/scripts/wordstat_tool.sh preflight-save semantics/<product>/preflight
-bash ~/.codex/skills/yandex-performance-ops/scripts/wordstat_tool.sh collect-wave-save \
+bash <plugin-root>/skills/yandex-performance-ops/scripts/wordstat_tool.sh where
+bash <plugin-root>/skills/yandex-performance-ops/scripts/wordstat_tool.sh preflight-save semantics/<product>/preflight
+bash <plugin-root>/skills/yandex-performance-ops/scripts/wordstat_tool.sh collect-wave-save \
   --masks-file semantics/<product>/01-masks-wave1.tsv \
   --output-dir semantics/<product>/raw/wordstat_wave1 \
   --num-phrases 2000 --dynamics true --regions-report true --regions-tree true \

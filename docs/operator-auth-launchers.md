@@ -40,6 +40,7 @@
 - `audience` -> profile `master_yandex`, режим `manual-code`, redirect `https://oauth.yandex.ru/verification_code`
 
 Это public `client_id`-профили. В этом репозитории они опубликованы намеренно, чтобы другие пользователи могли логиниться через ваши approved apps.
+Это policy choice именно этого bundle, а не обязательная модель для любого OAuth-проекта.
 
 Реальные `client_secret` в bundle не коммитятся и для default PKCE path не нужны.
 
