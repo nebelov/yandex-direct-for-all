@@ -18,6 +18,7 @@
 - launcher не требует вручную заполнять `client_id/client_secret` ради первого user token
 - public app-profiles уже лежат в `../config/yandex_oauth_public_profiles.json`
 - default path использует `PKCE`, поэтому `client_secret` для этого сценария не нужен
+- built-in `client_id` опубликованы намеренно для shared login через approved app
 
 ## Канонические скрипты
 

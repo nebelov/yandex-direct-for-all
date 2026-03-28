@@ -23,6 +23,12 @@
 
 По умолчанию в `./.codex/auth/`.
 
+## `client_id` у вас правда опубликован специально?
+
+Да. В этом bundle `client_id` в `plugins/yandex-direct-for-all/config/yandex_oauth_public_profiles.json` опубликованы намеренно для shared login через approved app.
+
+Не публикуется только `client_secret`.
+
 ## Когда нужен restart Codex?
 
 Обычно после `install_codex_bundle.sh` или после изменения plugin marketplace/manifest.

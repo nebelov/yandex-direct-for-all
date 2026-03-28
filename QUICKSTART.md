@@ -86,6 +86,11 @@ bash ./plugins/yandex-direct-for-all/scripts/install_codex_bundle.sh
 - `~/.codex/skills/yandex-direct-client-lifecycle/SKILL.md`
 - `~/.codex/skills/roistat-reports-api/SKILL.md`
 
+Если работаете прямо из repo/plugin без home-install, смотреть:
+
+- `plugins/yandex-direct-for-all/skills/README.md`
+- `plugins/yandex-direct-for-all/docs/skill-index.md`
+
 ## 9. Чего не делать
 
 - Не коммитить `.env`, `oauth*.json`, `*token*.json`, `.codex/`, `.claude/`.

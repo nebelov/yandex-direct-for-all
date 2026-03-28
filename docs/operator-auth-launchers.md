@@ -39,7 +39,9 @@
 - `metrika` -> profile `master_yandex`, режим `manual-code`, redirect `https://oauth.yandex.ru/verification_code`
 - `audience` -> profile `master_yandex`, режим `manual-code`, redirect `https://oauth.yandex.ru/verification_code`
 
-Это public `client_id`-профили. Реальные `client_secret` в bundle не коммитятся и для default PKCE path не нужны.
+Это public `client_id`-профили. В этом репозитории они опубликованы намеренно, чтобы другие пользователи могли логиниться через ваши approved apps.
+
+Реальные `client_secret` в bundle не коммитятся и для default PKCE path не нужны.
 
 ## Базовые команды
 

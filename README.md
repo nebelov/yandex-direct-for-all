@@ -23,6 +23,7 @@ GitHub-ready набор для агентной работы с `Yandex Direct`,
 - Самый короткий безопасный запуск: `QUICKSTART.md`
 - Типовые вопросы первого запуска: `FAQ.md`
 - Auth-модели без путаницы: `docs/auth-model-matrix.md`
+- Карта bundled skills: `docs/skill-index.md`
 - Operator OAuth launchers: `docs/operator-auth-launchers.md`
 - Полный inventory collector-скриптов: `plugins/yandex-direct-for-all/docs/data-collection-scripts.md`
 
@@ -56,6 +57,21 @@ GitHub-ready набор для агентной работы с `Yandex Direct`,
 - `plugins/yandex-direct-for-all/mcp/yandex-search` — локальный MCP-сервер для `Yandex Search API`.
 - `plugins/yandex-direct-for-all/mcp/yandex-wordstat` — локальный MCP-сервер для `Wordstat`.
 - `plugins/yandex-direct-for-all/scripts/*.sh` — быстрые launcher-скрипты для collector/parsing paths.
+
+## Где именно skills
+
+Bundled skills лежат прямо в plugin-root:
+
+- `plugins/yandex-direct-for-all/skills/yandex-performance-ops`
+- `plugins/yandex-direct-for-all/skills/yandex-direct-client-lifecycle`
+- `plugins/yandex-direct-for-all/skills/roistat-reports-api`
+- `plugins/yandex-direct-for-all/skills/amocrm-api-control`
+
+Skill index:
+
+- `docs/skill-index.md`
+- `plugins/yandex-direct-for-all/skills/README.md`
+- `plugins/yandex-direct-for-all/docs/skill-index.md`
 
 ## Где именно скрипты парсинга данных
 
@@ -272,6 +288,7 @@ Env-файл нужен только если вы хотите:
 - `docs/rule-source-map.md` — где именно в исходных skills лежат ключевые правила.
 - `docs/oauth-and-app-setup.md` — как поднимать auth-path официально.
 - `docs/yandex-audiences.md` — отдельные правила по `Yandex Audiences`.
+- `docs/skill-index.md` — карта bundled skills и entry points.
 - `CONTRIBUTING.md` — что прогонять перед PR/push.
 - `SECURITY.md` — как обращаться с секретами и security-репортами.
 - `FAQ.md` — быстрые ответы на типовые вопросы первого запуска.
