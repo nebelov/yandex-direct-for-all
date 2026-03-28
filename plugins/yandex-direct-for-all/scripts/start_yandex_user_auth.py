@@ -38,7 +38,7 @@ from yandex_auth_common import (  # noqa: E402
     resolve_public_profile,
 )
 
-AUTH_BASE = "https://oauth.yandex.com"
+AUTH_BASE = "https://oauth.yandex.ru"
 AUTHORIZE_URL = f"{AUTH_BASE}/authorize"
 TOKEN_URL = f"{AUTH_BASE}/token"
 DEVICE_CODE_URL = f"{AUTH_BASE}/device/code"
