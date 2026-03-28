@@ -1,36 +1,18 @@
 #!/usr/bin/env python3
-"""Синхронизация tasks.tsv → задачи YouGile.
-Переиспользуемый скрипт — работает через preset board или через явный columns JSON.
+"""Синхронизация tasks.tsv -> задачи YouGile.
+Переиспользуемый скрипт работает через project-local board presets или через явный columns JSON.
 Поддерживает оба формата приоритетов: P1-P4 и CRITICAL/HIGH/MEDIUM/LOW.
 """
 import argparse, json, csv, urllib.request, urllib.error, sys, os, time
+from pathlib import Path
 
 YOUGILE_API = "https://ru.yougile.com/api-v2"
 
-# Пресеты досок
-BOARD_PRESETS = {
-    "tenevoy": {
-        "backlog": "640b7463-024d-4c60-88a5-ec6f05d58ac7",
-        "planning": "46a8a939-8791-4400-b4fa-7112fdf21c8b",  # В работе
-        "monitoring": "3bd5c58d-23d5-4144-b09e-27308acbe0cf",
-        "waiting": "cc0aa037-3e6a-435a-b19e-0aa4689a6c51",  # Ожидает проверки
-        "done": "f1f09de8-8ee1-401e-9c48-2596093cb540",
-        "future": "e14545d0-8cfa-440f-bd35-ac1128fc5709",
-    },
-    "kartinium": {
-        "backlog": "decd6bad-fa05-4b55-b498-6a8f5a1e2a6f",
-        "planning": "3b90456a-5eeb-470e-9ce8-9c1e4acebe2d",
-        "in_work": "6c814dec-dc59-4a8f-a2fa-0e6ac0f05a89",
-    },
-    "siz": {
-        "backlog": "0d45fbd2-b01e-4c6e-8df4-1725abe8f37c",
-        "planning": "55d0204b-f001-4cd1-80eb-eecf34044133",  # В работе
-        "monitoring": "c9d265c3-79dc-48f8-8896-e00ef07c24f6",
-        "waiting": "0f5cb12d-2558-4250-89ed-97e5b444aed3",  # Проверка результатов
-        "done": "f49a6052-8619-4818-88c3-6006f8b094fc",
-        "future": "5a08a3ec-3a3c-4e07-9c48-4f921101b9ea",  # Ледник
-    },
-}
+DEFAULT_PRESET_FILES = (
+    Path.cwd() / ".codex" / "yougile-board-presets.json",
+    Path.cwd() / ".claude" / "yougile-board-presets.json",
+    Path.cwd() / "yougile-board-presets.json",
+)
 
 # Маппинг priority → колонка (оба формата)
 PRIORITY_COLUMN = {
@@ -112,6 +94,23 @@ def create_task(token, column_id, title, description, color="yellow"):
     return yougile_api(token, "POST", "tasks", data)
 
 
+def load_board_presets():
+    candidates = [os.environ.get("YOUGILE_BOARD_PRESETS_FILE", "").strip()]
+    candidates.extend(str(path) for path in DEFAULT_PRESET_FILES)
+    for raw in candidates:
+        if not raw:
+            continue
+        path = Path(raw).expanduser().resolve()
+        if not path.exists():
+            continue
+        with path.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        if not isinstance(data, dict):
+            raise SystemExit(f"Board presets file must contain a JSON object: {path}")
+        return data
+    return {}
+
+
 def load_columns(board_name, columns_json):
     if columns_json:
         if os.path.exists(columns_json):
@@ -122,17 +121,29 @@ def load_columns(board_name, columns_json):
         if not isinstance(data, dict) or not data:
             raise SystemExit("--columns-json must be a JSON object with column aliases")
         return data
+    presets = load_board_presets()
     if not board_name:
-        raise SystemExit("Provide --board preset or --columns-json")
-    return BOARD_PRESETS[board_name]
+        raise SystemExit(
+            "Provide --board preset or --columns-json. "
+            "Project-local presets can live in ./.codex/yougile-board-presets.json "
+            "or path from YOUGILE_BOARD_PRESETS_FILE."
+        )
+    if board_name not in presets:
+        available = ", ".join(sorted(presets)) or "none"
+        raise SystemExit(
+            f"Unknown board preset: {board_name}. "
+            f"Available presets: {available}. "
+            "Use --columns-json or provide project-local presets."
+        )
+    return presets[board_name]
 
 
 def main():
-    p = argparse.ArgumentParser(description="Синхронизация tasks.tsv → YouGile")
+    p = argparse.ArgumentParser(description="Синхронизация tasks.tsv -> YouGile")
     p.add_argument("--yougile-token", required=True, help="YouGile API token")
     p.add_argument("--tasks-file", required=True, help="Путь к tasks.tsv")
     p.add_argument("--campaign-name", default="Директ", help="Префикс задач")
-    p.add_argument("--board", default="", choices=[""] + list(BOARD_PRESETS.keys()), help="Пресет доски")
+    p.add_argument("--board", default="", help="Имя project-local пресета доски")
     p.add_argument("--columns-json", default="", help="Path to JSON or inline JSON with YouGile columns map")
     p.add_argument("--category", help="Фильтр по категории")
     p.add_argument("--priority", help="Фильтр по приоритету")

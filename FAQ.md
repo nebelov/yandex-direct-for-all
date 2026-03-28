@@ -16,8 +16,9 @@
 
 ## Что выбрать: marketplace или install script?
 
-- `marketplace.json` нужен для repo-local plugin в Codex
-- `install_codex_bundle.sh` и `install_claude_bundle.sh` нужны для копии skill/MCP в home directories
+- `./.agents/plugins/marketplace.json` = основной repo-local путь для `Codex`
+- `install_codex_bundle.sh` = optional personal home-install в `${CODEX_HOME:-~/.codex}/plugins`
+- `install_claude_bundle.sh` = optional compatibility copy для `Claude`
 
 ## Где оказываются токены после OAuth?
 
@@ -26,12 +27,13 @@
 ## `client_id` у вас правда опубликован специально?
 
 Да. В этом bundle `client_id` в `plugins/yandex-direct-for-all/config/yandex_oauth_public_profiles.json` опубликованы намеренно для shared login через approved app.
+Это policy именно этого репозитория, а не универсальное правило для любого OAuth-проекта.
 
 Не публикуется только `client_secret`.
 
 ## Когда нужен restart Codex?
 
-Обычно после `install_codex_bundle.sh` или после изменения plugin marketplace/manifest.
+Обычно после clone/update repo-local plugin, после изменения marketplace/manifest или после `install_codex_bundle.sh`.
 
 ## Что считать успешным первым запуском?
 

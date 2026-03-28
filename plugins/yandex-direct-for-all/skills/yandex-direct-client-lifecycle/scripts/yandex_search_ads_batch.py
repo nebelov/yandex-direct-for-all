@@ -119,7 +119,7 @@ def build_auth_and_folder() -> tuple[dict[str, str], str, str]:
     candidates = [
         os.environ.get("YANDEX_SEARCH_CREDENTIALS_FILE", "").strip(),
         str(Path.cwd() / ".yandex_cloud_search_api.json"),
-        str(Path.home() / ".codex" / "credentials" / "yandex-cloud-search-tenevoy.json"),
+        str(Path.cwd() / ".codex" / "yandex-cloud-search-api.json"),
     ]
     for raw in candidates:
         if not raw:

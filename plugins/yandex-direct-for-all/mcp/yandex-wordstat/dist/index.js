@@ -23,7 +23,7 @@ import { topRequestsSchema, dynamicsSchema, regionsSchema } from './schemas.js';
 const TOKEN = process.env.YANDEX_WORDSTAT_TOKEN;
 if (!TOKEN) {
     console.error('ОШИБКА: Переменная YANDEX_WORDSTAT_TOKEN не установлена.');
-    console.error('Добавьте токен в env секцию конфигурации MCP-сервера в ~/.claude.json');
+    console.error('Добавьте токен в env секцию вашего MCP-конфига или экспортируйте YANDEX_WORDSTAT_TOKEN перед запуском сервера.');
     process.exit(1);
 }
 const client = new WordstatClient({ token: TOKEN });

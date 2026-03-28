@@ -16,11 +16,13 @@ from pathlib import Path
 from typing import Any
 
 
-SEARCH_TEMPLATE_PATH = Path("~/.codex/skills/yandex-performance-ops/templates/codex_swarm_search_worker_prompt.md").expanduser()
-RSYA_TEMPLATE_PATH = Path("~/.codex/skills/yandex-performance-ops/templates/codex_swarm_rsya_worker_prompt.md").expanduser()
-SEARCH_SCHEMA_PATH = Path("~/.codex/skills/yandex-performance-ops/schemas/codex_swarm_search_chunk_response.schema.json").expanduser()
-RSYA_SCHEMA_PATH = Path("~/.codex/skills/yandex-performance-ops/schemas/codex_swarm_rsya_chunk_response.schema.json").expanduser()
-GLOBAL_SKILL_PATH = Path("~/.codex/skills/yandex-performance-ops/SKILL.md").expanduser()
+SCRIPT_DIR = Path(__file__).resolve().parent
+SKILL_ROOT = SCRIPT_DIR.parent
+SEARCH_TEMPLATE_PATH = SKILL_ROOT / "templates/codex_swarm_search_worker_prompt.md"
+RSYA_TEMPLATE_PATH = SKILL_ROOT / "templates/codex_swarm_rsya_worker_prompt.md"
+SEARCH_SCHEMA_PATH = SKILL_ROOT / "schemas/codex_swarm_search_chunk_response.schema.json"
+RSYA_SCHEMA_PATH = SKILL_ROOT / "schemas/codex_swarm_rsya_chunk_response.schema.json"
+GLOBAL_SKILL_PATH = SKILL_ROOT / "SKILL.md"
 
 
 @dataclass(frozen=True)

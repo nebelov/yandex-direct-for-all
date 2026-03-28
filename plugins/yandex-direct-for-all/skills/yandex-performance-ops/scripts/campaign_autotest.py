@@ -17,7 +17,7 @@
   python3 campaign_autotest.py --token TOKEN --login LOGIN --campaign-ids 123,456
 
 Или из Codex:
-  python3 ~/.codex/skills/yandex-performance-ops/scripts/campaign_autotest.py \
+  python3 <plugin-root>/skills/yandex-performance-ops/scripts/campaign_autotest.py \
     --token "y0__xxx" --login "e-12345" --campaign-ids "707558165,707558664"
 """
 

@@ -9,6 +9,13 @@ description: "Use when onboarding a new or stale Yandex Direct client, building 
 
 Этот навык закрывает upstream-слой работы с клиентом по Яндекс.Директ: `intake -> база знаний -> raw research -> analysis -> human review -> client proposal -> handoff`.
 
+## Path Contract
+
+- `<plugin-root>` = корень этого bundle, где лежат `.codex-plugin/plugin.json`, `skills/`, `mcp/`, `scripts/`.
+- Repo-local пример: `./plugins/yandex-direct-for-all`
+- Home-compatible install пример: `~/.codex/plugins/yandex-direct-for-all` или `~/.claude/plugins/yandex-direct-for-all`
+- Все runtime-команды в этом skill должны ссылаться на `<plugin-root>/...`, а не на `~/.codex/skills/...`.
+
 Новый skill не имеет права заменять канонические source-skills по `Wordstat`, `Direct semantics` и `Direct`.
 
 Перед любым sematics/Direct блоком считай обязательным upstream contract:
@@ -32,14 +39,14 @@ description: "Use when onboarding a new or stale Yandex Direct client, building 
 Если работа идет по уже начатому клиенту, сначала искать готовые артефакты исследования, generated tables, готовую клиентскую страницу и deploy bundle, а не поднимать новый слой поверх старого.
 Перед таким продолжением сначала опираться на:
 
-1. `~/.codex/skills/yandex-performance-ops/references/future_session_start_checklist.md`
+1. `<plugin-root>/skills/yandex-performance-ops/references/future_session_start_checklist.md`
 
 ## Quick Start
 
 Если в проекте еще нет локального клиентского слоя, сначала создай его:
 
 ```bash
-python3 ~/.codex/skills/yandex-direct-client-lifecycle/scripts/scaffold_client_lifecycle.py \
+python3 <plugin-root>/skills/yandex-direct-client-lifecycle/scripts/scaffold_client_lifecycle.py \
   --output-dir . \
   --client-key acme \
   --client-name "Acme"
@@ -73,13 +80,13 @@ python3 ~/.codex/skills/yandex-direct-client-lifecycle/scripts/scaffold_client_l
 Для batch-сбора используй канонические job-spec -> collector paths:
 
 ```bash
-python3 ~/.codex/skills/yandex-direct-client-lifecycle/scripts/yandex_search_batch.py \
+python3 <plugin-root>/skills/yandex-direct-client-lifecycle/scripts/yandex_search_batch.py \
   --jobs-file ./research/jobs/organic-serp-jobs.tsv \
   --output-dir ./research/raw/competitor-search/wave-01
 ```
 
 ```bash
-python3 ~/.codex/skills/yandex-direct-client-lifecycle/scripts/yandex_search_ads_batch.py \
+python3 <plugin-root>/skills/yandex-direct-client-lifecycle/scripts/yandex_search_ads_batch.py \
   --jobs-file ./research/jobs/ad-serp-jobs.tsv \
   --output-dir ./research/raw/ad-serp/wave-01
 ```
@@ -87,14 +94,14 @@ python3 ~/.codex/skills/yandex-direct-client-lifecycle/scripts/yandex_search_ads
 Если cloud-auth еще не подключен, сначала прогони только request preview:
 
 ```bash
-python3 ~/.codex/skills/yandex-direct-client-lifecycle/scripts/yandex_search_batch.py \
+python3 <plugin-root>/skills/yandex-direct-client-lifecycle/scripts/yandex_search_batch.py \
   --jobs-file ./research/jobs/organic-serp-jobs.tsv \
   --output-dir ./research/raw/competitor-search/wave-01-preview \
   --dry-run
 ```
 
 ```bash
-python3 ~/.codex/skills/yandex-direct-client-lifecycle/scripts/firecrawl_scrape.py \
+python3 <plugin-root>/skills/yandex-direct-client-lifecycle/scripts/firecrawl_scrape.py \
   --jobs-file ./research/jobs/page-capture-jobs.tsv \
   --output-dir ./research/raw/competitors/firecrawl/wave-01 \
   --proxy enhanced \
@@ -102,7 +109,7 @@ python3 ~/.codex/skills/yandex-direct-client-lifecycle/scripts/firecrawl_scrape.
 ```
 
 ```bash
-python3 ~/.codex/skills/yandex-direct-client-lifecycle/scripts/sitemap_probe_batch.py \
+python3 <plugin-root>/skills/yandex-direct-client-lifecycle/scripts/sitemap_probe_batch.py \
   --jobs-file ./research/jobs/sitemap-jobs.tsv \
   --output-dir ./research/raw/competitors/sitemaps/wave-01
 ```
@@ -110,7 +117,7 @@ python3 ~/.codex/skills/yandex-direct-client-lifecycle/scripts/sitemap_probe_bat
 Пакет текстов после ручной подготовки нужно прогонять через reusable validator:
 
 ```bash
-python3 ~/.codex/skills/yandex-performance-ops/scripts/validate_direct_copy_pack.py \
+python3 <plugin-root>/skills/yandex-performance-ops/scripts/validate_direct_copy_pack.py \
   --input-tsv ./research/analysis/готовые-тексты-для-директа.tsv \
   --output-dir ./research/analysis/валидация-текстов-директ
 ```
@@ -120,16 +127,16 @@ python3 ~/.codex/skills/yandex-performance-ops/scripts/validate_direct_copy_pack
 1. широкие корневые маски отдельно;
 2. точные базовые маски отдельно;
 3. без суммирования вложенных запросов и без складывания масок между собой.
-4. использовать готовый renderer `~/.codex/skills/yandex-performance-ops/scripts/render_wordstat_mask_demand.py`, а не дописывать цифры вручную.
+4. использовать готовый renderer `<plugin-root>/skills/yandex-performance-ops/scripts/render_wordstat_mask_demand.py`, а не дописывать цифры вручную.
 5. сезонность и географию считать обязательными частями этого же блока.
 6. использовать готовые renderer paths:
-   - `~/.codex/skills/yandex-performance-ops/scripts/render_wordstat_seasonality.py`
-   - `~/.codex/skills/yandex-performance-ops/scripts/render_wordstat_geo.py`
+   - `<plugin-root>/skills/yandex-performance-ops/scripts/render_wordstat_seasonality.py`
+   - `<plugin-root>/skills/yandex-performance-ops/scripts/render_wordstat_geo.py`
 7. raw для сезонности и географии собирать тем же wave-collector path, а не отдельными ручными `wordstat_*` вызовами:
-   - `~/.codex/skills/yandex-performance-ops/scripts/wordstat_collect_wave.js --dynamics true --regions-report true --regions-tree true`
+   - `<plugin-root>/skills/yandex-performance-ops/scripts/wordstat_collect_wave.js --dynamics true --regions-report true --regions-tree true`
 
 ```bash
-python3 ~/.codex/skills/yandex-direct-client-lifecycle/scripts/build_followup_jobs_from_serp.py \
+python3 <plugin-root>/skills/yandex-direct-client-lifecycle/scripts/build_followup_jobs_from_serp.py \
   --serp-results ./research/raw/competitor-search/wave-01/serp_results.tsv \
   --page-capture-out ./research/jobs/page-capture-jobs.tsv \
   --sitemap-out ./research/jobs/sitemap-jobs.tsv \

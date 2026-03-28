@@ -20,6 +20,8 @@
 - default path использует `PKCE`, поэтому `client_secret` для этого сценария не нужен
 - built-in `client_id` опубликованы намеренно для shared login через approved app
 
+Это policy choice именно этого bundle, а не обязательная модель для любого OAuth-проекта.
+
 ## Канонические скрипты
 
 - `scripts/start_yandex_user_auth.sh`
