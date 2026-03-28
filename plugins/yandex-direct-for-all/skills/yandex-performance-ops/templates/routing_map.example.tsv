@@ -1,0 +1,6 @@
+cluster	campaign_name	adgroup_name	match_type	landing_hint
+core	ACME Search Core	Core	intent	/
+brand	ACME Search Brand	Brand	intent	/brand
+roles	ACME Search Roles	Roles	intent	/roles
+ecom	ACME Search Ecom	Ecom	intent	/ecom
+

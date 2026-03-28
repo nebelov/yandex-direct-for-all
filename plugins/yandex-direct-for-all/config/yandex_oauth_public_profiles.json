@@ -1,0 +1,23 @@
+{
+  "legacy_direct": {
+    "label": "Legacy Direct approved app",
+    "client_id": "1fad3110ce0845d7b5dc7a22aae51ed7",
+    "redirect_uri": "http://localhost:8080/callback",
+    "default_mode": "local-callback",
+    "supports": [
+      "direct"
+    ],
+    "notes": "Public client_id only. PKCE flow avoids shipping client_secret in the bundle."
+  },
+  "master_yandex": {
+    "label": "Master Yandex app",
+    "client_id": "638bfe4f9d574159835c5da80a8ced32",
+    "redirect_uri": "https://oauth.yandex.ru/verification_code",
+    "default_mode": "manual-code",
+    "supports": [
+      "metrika",
+      "audience"
+    ],
+    "notes": "Public client_id only. Intended for Audience and Metrika portable consent flow."
+  }
+}
