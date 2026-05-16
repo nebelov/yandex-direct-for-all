@@ -28,6 +28,18 @@ GitHub-ready набор для агентной работы с `Yandex Direct`,
 - Operator OAuth launchers: `docs/operator-auth-launchers.md`
 - Полный inventory collector-скриптов: `plugins/yandex-direct-for-all/docs/data-collection-scripts.md`
 
+## Current Runtime And Safety Contracts
+
+The public plugin remains portable. Production deployments can layer additional runner, memory, Telegram, or MCP routing contracts on top without making them mandatory install steps.
+
+New contract docs:
+
+- `docs/current-runtime.md` — portable plugin vs production operating model.
+- `docs/telegram-bridge-contract.md` — chat bridge expectations and boundaries.
+- `docs/memory-contract.md` — what can be promoted to public reusable memory.
+- `docs/yandex-performance-mcp-routing.md` — preferred route order and fallback discipline.
+- `docs/write-approval-contract.md` — read-only default and explicit write gates.
+
 ## Path Contract
 
 - `<repo-root>` = корень этого репозитория.
@@ -147,12 +159,12 @@ bash ./plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service
 
 - берёт public app-profile из `plugins/yandex-direct-for-all/config/yandex_oauth_public_profiles.json`
 - генерирует `PKCE` verifier/challenge
-- не требует ручного заполнения `client_id/client_secret`
+- не требует ручного заполнения client credentials
 - после сохранения token сразу запускает read-only preflight
 
 На выходе будут:
 
-- `./.codex/auth/direct_oauth_token.json`
+- a project-local Direct token JSON file
 - `./.codex/auth/direct_oauth.env`
 - `./.codex/auth/direct_oauth_preflight.json`
 
