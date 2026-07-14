@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render a sourceable env file from a Yandex OAuth token JSON."""
+"""Render a protected env file from a protected Yandex OAuth token file."""
 
 from __future__ import annotations
 
@@ -7,38 +7,21 @@ import argparse
 import json
 from pathlib import Path
 
-
-ENV_NAMES = {
-    "direct": "YD_TOKEN",
-    "metrika": "YANDEX_METRIKA_TOKEN",
-    "audience": "YANDEX_AUDIENCE_TOKEN",
-}
+from yandex_auth_common import TOKEN_ENV_NAMES, load_token_payload, write_text
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--service", choices=sorted(ENV_NAMES), required=True)
-    parser.add_argument("--input", required=True, help="Path to OAuth token JSON")
-    parser.add_argument("--output", required=True, help="Path to generated .env file")
+    parser.add_argument("--service", choices=sorted(TOKEN_ENV_NAMES), required=True)
+    parser.add_argument("--input", required=True)
+    parser.add_argument("--output", required=True)
     args = parser.parse_args()
-
     input_path = Path(args.input).expanduser().resolve()
+    payload = load_token_payload(input_path)
     output_path = Path(args.output).expanduser().resolve()
-
-    payload = json.loads(input_path.read_text(encoding="utf-8"))
-    access_token = str(payload.get("access_token", "")).strip()
-    if not access_token:
-        raise SystemExit(f"No access_token found in {input_path}")
-
-    env_name = ENV_NAMES[args.service]
-    content = (
-        f"# Generated from {input_path}\n"
-        f"# Service: {args.service}\n"
-        f"export {env_name}={json.dumps(access_token, ensure_ascii=False)}\n"
-    )
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(content, encoding="utf-8")
-    print(output_path)
+    name = TOKEN_ENV_NAMES[args.service]
+    write_text(output_path, f"export {name}={json.dumps(str(payload['access_token']))}\n")
+    print(f"Защищённый файл создан: {output_path.name}")
 
 
 if __name__ == "__main__":

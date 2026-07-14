@@ -1,15 +1,12 @@
-# Auth Model Matrix
+# Способы авторизации
 
-| Layer | Reusable app for many users | Per-user consent | Auth artifact | Recommended bundle path |
-|---|---|---|---|---|
-| `Direct` | Yes | Yes | user OAuth token | `start_yandex_user_auth.sh` |
-| `Metrika` | Yes | Yes | user OAuth token | `start_yandex_user_auth.sh` |
-| `Audience` | Yes | Yes | user OAuth token | `start_yandex_user_auth.sh` |
-| `Wordstat` | Not in the same official model | Usually no | IAM token / API key / cloud role | separate cloud setup |
-| `Search API` | Not in the same official model | Usually no | IAM token / API key / cloud role | separate cloud setup |
+| Служба | Основной вход | Локальное хранение | Договор |
+|---|---|---|---|
+| Яндекс.Директ | `scripts/start_yandex_user_auth.sh --service direct --client-login 'логин-рекламодателя'` | `.codex/auth/direct_oauth_token.json`, `0600` | Только чтение, обязательна область клиента |
+| Яндекс.Метрика | `scripts/start_yandex_user_auth.sh --service metrika` | `.codex/auth/metrika_oauth_token.json`, `0600` | Только чтение доступных счётчиков |
+| Wordstat | `YANDEX_WORDSTAT_API_KEY` и `YANDEX_WORDSTAT_FOLDER_ID` | вне пакета | API v2 с общим ограничителем |
+| Поиск Яндекса | `YANDEX_SEARCH_API_KEY` и `YANDEX_SEARCH_FOLDER_ID` | вне пакета | Платный маршрут выключен по умолчанию |
 
-## Bundle rule
+Директ и Метрика используют сохранённые в пакете опубликованные приложения, поэтому пользователю не нужно создавать своё. Обмен выполняется по коду с PKCE S256 и без секрета приложения.
 
-- `Direct/Metrika/Audience` -> operator app + user consent is valid
-- `Wordstat/Search API` -> separate cloud setup
-- launcher details -> `docs/operator-auth-launchers.md`
+Песочница и рабочее чтение Директа используют разные переменные. `YANDEX_DIRECT_CLIENT_LOGIN` обязателен для любого чтения: прямой рекламодатель указывает собственный логин, представитель агентства — логин клиента-рекламодателя. Запрос без явной области отклоняется до обращения к сети.

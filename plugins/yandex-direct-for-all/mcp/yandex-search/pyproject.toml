@@ -1,12 +1,8 @@
 [project]
 name = "yandex-search-mcp"
-version = "0.1.0"
+version = "1.1.0"
 requires-python = ">=3.10"
 dependencies = [
-    "mcp[cli]>=1.0.0",
-    "requests",
-    "python-dotenv"
+    "mcp==1.28.1",
+    "requests==2.34.2",
 ]
-
-[project.scripts]
-yandex-search = "server:main"

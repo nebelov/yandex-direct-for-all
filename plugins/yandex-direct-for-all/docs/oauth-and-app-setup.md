@@ -1,77 +1,16 @@
-# OAuth, Access, and Reuse Model
+# Авторизация Директа и Метрики
 
-Короткий practical verdict для bundle:
+Пакет содержит общие опубликованные приложения Яндекса. Любой установивший пакет может авторизовать собственный аккаунт без регистрации приложения и без секрета.
 
-- `Direct` -> reusable approved app + per-user consent
-- `Metrika` -> reusable app + per-user consent
-- `Audience` -> reusable app + per-user consent
-- `Wordstat` -> отдельный `Yandex Cloud / Search API` path
+```bash
+# Прямой рекламодатель указывает собственный логин, агентство — логин клиента.
+export YANDEX_DIRECT_CLIENT_LOGIN='логин-рекламодателя'
+./scripts/start_yandex_user_auth.sh --service direct
+./scripts/start_yandex_user_auth.sh --service metrika
+```
 
-## Что теперь canonical в этом bundle
+Директ принимает ответ на зарегистрированном локальном адресе. Метрика показывает одноразовый код, который программа запрашивает скрыто. Оба маршрута используют PKCE S256, сохраняют незавершённый сеанс и после обмена обязательно сверяют приложение через Яндекс ID и выполняют чтение выбранной службы. Для Директа явный логин рекламодателя обязателен и проверяется до первого сетевого запроса к службе.
 
-Больше не считать обязательным шагом ручное заполнение `client_id/client_secret` ради получения первого user token.
+Каталог `.codex/auth/` создаётся с правами `0700`, чувствительные файлы — `0600`. Не добавляйте каталог в Git.
 
-Default auth path теперь такой:
-
-1. launcher берёт public app-profile из `../config/yandex_oauth_public_profiles.json`
-2. генерирует `PKCE`
-3. получает `code`
-4. обменивает его на token
-5. сохраняет token/env/preflight artifacts
-6. сразу делает read-only post-auth preflight
-
-## Service defaults
-
-- `direct` -> `legacy_direct` -> `local-callback`
-- `metrika` -> `master_yandex` -> `manual-code`
-- `audience` -> `master_yandex` -> `manual-code`
-
-## Почему это работает без secret в default path
-
-Официальный OAuth for Yandex ID поддерживает `PKCE`.
-
-Если передать:
-
-- `code_challenge` при запросе confirmation code
-- `code_verifier` при обмене code на token
-
-то `client_secret` для этого сценария не обязателен.
-
-Именно так работает текущий launcher.
-
-## Что создаётся
-
-После успешной авторизации:
-
-- `./.codex/auth/<service>_oauth_token.json`
-- `./.codex/auth/<service>_oauth.env`
-- `./.codex/auth/<service>_oauth_preflight.json`
-
-Если запуск шёл в two-step mode:
-
-- `./.codex/auth/<service>_oauth_pending.json`
-
-## Почему preflight обязателен
-
-Valid token != доступ к нужному кабинету/счётчику/сегменту.
-
-Поэтому bundle сразу проверяет:
-
-- `Direct` -> `campaigns.get`
-- `Metrika` -> counters / counter_info / goals
-- `Audience` -> segments + optional `Direct Live4`
-
-## Где ещё нужен env
-
-`../examples/yandex.env.example` остаётся как optional layer:
-
-- свой кастомный app
-- legacy flow с `client_secret`
-- runtime env для уже полученного token
-- cloud auth для `Wordstat / Search API`
-
-## See also
-
-- `docs/operator-auth-launchers.md`
-- `docs/auth-model-matrix.md`
-- `../config/yandex_oauth_public_profiles.json`
+Для собственного приложения, если оно действительно нужно, задайте `YANDEX_DIRECT_OAUTH_CLIENT_ID` или `YANDEX_METRIKA_OAUTH_CLIENT_ID`, либо защищённый `YANDEX_OAUTH_CONFIG_FILE`. Секрет приложения не принимается.
