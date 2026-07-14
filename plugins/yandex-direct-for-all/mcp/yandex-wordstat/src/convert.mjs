@@ -1,5 +1,5 @@
-import { link, mkdir, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { execFileSync } from 'node:child_process';
+import { mkdir, open, readFile, rename, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -242,45 +242,35 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function processIsAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    if (error.code === 'ESRCH') return false;
-    if (error.code === 'EPERM') return true;
-    throw error;
-  }
-}
+const FLOCK_HELPER = `
+import fcntl
+import os
+import sys
 
-function processIdentity(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return null;
-  try {
-    const started = execFileSync('/bin/ps', ['-o', 'lstart=', '-p', String(pid)], {
-      encoding: 'utf8',
-      env: { ...process.env, LANG: 'C', LC_ALL: 'C' },
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-    return started ? `${process.platform}:${started}` : null;
-  } catch {
-    return null;
-  }
-}
+path = sys.argv[1]
+descriptor = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+os.chmod(path, 0o600)
+with os.fdopen(descriptor, "r+b", buffering=0) as handle:
+    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    sys.stdout.write("LOCKED\\n")
+    sys.stdout.flush()
+    sys.stdin.buffer.read(1)
+    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+`;
 
 export class WordstatUsageLedger {
   constructor({
     statePath = defaultStatePath(),
     now = () => Date.now(),
     sleep = delay,
-    isProcessAlive = processIsAlive,
-    getProcessIdentity = processIdentity,
+    pythonCommand = process.env.PYTHON || 'python3',
   } = {}) {
     this.statePath = statePath;
     this.lockPath = `${statePath}.lock`;
     this.now = now;
     this.sleep = sleep;
-    this.isProcessAlive = isProcessAlive;
-    this.getProcessIdentity = getProcessIdentity;
+    this.pythonCommand = pythonCommand;
+    this.lockProcess = null;
   }
 
   async reserve({ endpoint, billed }) {
@@ -306,7 +296,7 @@ export class WordstatUsageLedger {
           return;
         }
       } finally {
-        await rm(this.lockPath, { recursive: true, force: true });
+        await this.#unlock();
       }
       await this.sleep(waitMs);
     }
@@ -325,63 +315,55 @@ export class WordstatUsageLedger {
         costUnitsLastHour: requests.reduce((sum, item) => sum + (item.costUnits || 0), 0),
       };
     } finally {
-      await rm(this.lockPath, { recursive: true, force: true });
+      await this.#unlock();
     }
   }
 
   async #lock() {
     await mkdir(dirname(this.statePath), { recursive: true, mode: 0o700 });
-    const selfIdentity = this.getProcessIdentity(process.pid);
-    if (!selfIdentity) throw new Error('Не удалось определить идентичность процесса для блокировки квоты Wordstat');
-    for (;;) {
-      const candidatePath = `${this.lockPath}.candidate-${process.pid}-${Math.random().toString(16).slice(2)}`;
-      let handle;
-      try {
-        handle = await open(candidatePath, 'wx', 0o600);
-        await handle.writeFile(`${JSON.stringify({ version: 2, pid: process.pid, processIdentity: selfIdentity, acquiredAt: new Date().toISOString() })}\n`);
-        await handle.sync();
-        await handle.close();
-        handle = undefined;
-        await link(candidatePath, this.lockPath);
-        await rm(candidatePath, { force: true });
-        return;
-      } catch (error) {
-        await handle?.close().catch(() => {});
-        await rm(candidatePath, { force: true });
-        if (error.code !== 'EEXIST') throw error;
-        let owner;
-        try {
-          owner = JSON.parse(await readFile(this.lockPath, 'utf8'));
-        } catch (ownerError) {
-          if (ownerError.code === 'ENOENT') continue;
-          throw new Error(`Блокировка квоты Wordstat повреждена: ${ownerError.message}`);
+    if (this.lockProcess) throw new Error('Повторный захват блокировки квоты Wordstat одним экземпляром запрещён');
+    const child = spawn(this.pythonCommand, ['-c', FLOCK_HELPER, this.lockPath], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let standardOutput = '';
+    let standardError = '';
+    await new Promise((resolve, reject) => {
+      let locked = false;
+      child.stdout.setEncoding('utf8');
+      child.stderr.setEncoding('utf8');
+      child.stdout.on('data', (chunk) => {
+        standardOutput += chunk;
+        if (!locked && standardOutput.includes('LOCKED\n')) {
+          locked = true;
+          resolve();
         }
-        if (!Number.isInteger(owner.pid) || owner.pid <= 0) {
-          throw new Error('Блокировка квоты Wordstat повреждена: отсутствует владелец процесса');
-        }
-        if (typeof owner.processIdentity !== 'string' || !owner.processIdentity) {
-          throw new Error('Блокировка квоты Wordstat повреждена: отсутствует идентичность запуска процесса');
-        }
-        let ownerAlive = this.isProcessAlive(owner.pid);
-        const liveIdentity = ownerAlive ? this.getProcessIdentity(owner.pid) : null;
-        if (ownerAlive && !liveIdentity) {
-          ownerAlive = this.isProcessAlive(owner.pid);
-          if (ownerAlive) throw new Error('Не удалось проверить идентичность владельца блокировки квоты Wordstat');
-        }
-        if (!ownerAlive || liveIdentity !== owner.processIdentity) {
-          const stalePath = `${this.lockPath}.stale-${process.pid}-${Math.random().toString(16).slice(2)}`;
-          try {
-            await rename(this.lockPath, stalePath);
-          } catch (renameError) {
-            if (renameError.code === 'ENOENT') continue;
-            throw renameError;
-          }
-          await rm(stalePath, { force: true });
-          continue;
-        }
-        await this.sleep(25);
-      }
+      });
+      child.stderr.on('data', (chunk) => { standardError += chunk; });
+      child.once('error', reject);
+      child.once('exit', (code, signal) => {
+        if (!locked) reject(new Error(`Не удалось захватить блокировку квоты Wordstat: ${standardError.trim() || `код ${code}, сигнал ${signal}`}`));
+      });
+    });
+    this.lockProcess = child;
+  }
+
+  async #unlock() {
+    const child = this.lockProcess;
+    if (!child) return;
+    this.lockProcess = null;
+    if (child.exitCode !== null) {
+      if (child.exitCode === 0) return;
+      throw new Error(`Процесс блокировки квоты Wordstat завершился с кодом ${child.exitCode}`);
     }
+    const completion = new Promise((resolve, reject) => {
+      child.once('error', reject);
+      child.once('exit', (code, signal) => {
+        if (code === 0) resolve();
+        else reject(new Error(`Не удалось освободить блокировку квоты Wordstat: код ${code}, сигнал ${signal}`));
+      });
+    });
+    child.stdin.end();
+    await completion;
   }
 
   async #read() {

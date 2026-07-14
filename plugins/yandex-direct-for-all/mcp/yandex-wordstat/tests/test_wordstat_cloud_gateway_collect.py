@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import importlib.util
+import fcntl
 import json
 import os
+import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -116,7 +119,9 @@ class CollectorTests(unittest.TestCase):
             saved = json.loads(state_path.read_text(encoding="utf-8"))
             self.assertEqual(len(saved["requests"]), 1)
             self.assertFalse(saved["requests"][0]["billed"])
-            self.assertFalse(state_path.with_suffix(".json.lock").exists())
+            lock_path = state_path.with_suffix(".json.lock")
+            self.assertTrue(lock_path.exists())
+            self.assertEqual(lock_path.stat().st_mode & 0o777, 0o600)
 
     def test_corrupt_quota_state_fails_closed_without_replacing_history(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -142,7 +147,63 @@ class CollectorTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Состояние квоты Wordstat повреждено"):
                 pacer.before_request(billed=False)
             self.assertEqual(state_path.read_bytes(), original)
-            self.assertFalse(state_path.with_suffix(".json.lock").exists())
+            self.assertTrue(state_path.with_suffix(".json.lock").exists())
+
+    def test_non_finite_quota_values_fail_closed_without_replacing_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            state_path = Path(tmp) / "limits.json"
+            payloads = [
+                {"version": 2, "requests": [], "nextAllowedAt": float("nan")},
+                {"version": 2, "requests": [], "nextAllowedAt": float("inf")},
+                {"version": 2, "requests": [{"at": float("nan"), "endpoint": "x", "billed": True, "costUnits": 1}], "nextAllowedAt": 0},
+                {"version": 2, "requests": [{"at": 1, "endpoint": "x", "billed": True, "costUnits": float("inf")}], "nextAllowedAt": 0},
+            ]
+            for payload in payloads:
+                original = json.dumps(payload).encode("utf-8")
+                state_path.write_bytes(original)
+                os.chmod(state_path, 0o600)
+                with self.assertRaisesRegex(RuntimeError, "Состояние квоты Wordstat повреждено"):
+                    cloud.QuotaPacer(state_path).before_request(billed=False)
+                self.assertEqual(state_path.read_bytes(), original)
+
+    def test_node_waits_for_python_advisory_lock_and_then_uses_shared_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_path = root / "limits.json"
+            lock_path = state_path.with_suffix(".json.lock")
+            started_path = root / "node-started"
+            done_path = root / "node-done"
+            convert_uri = (SCRIPT.parents[1] / "src" / "convert.mjs").as_uri()
+            code = f"""
+                import {{ writeFile }} from 'node:fs/promises';
+                import {{ WordstatUsageLedger }} from {json.dumps(convert_uri)};
+                await writeFile({json.dumps(str(started_path))}, 'started');
+                const ledger = new WordstatUsageLedger({{ statePath: {json.dumps(str(state_path))}, now: () => 500000 }});
+                await ledger.reserve({{ endpoint: 'node-cross-runtime', billed: true }});
+                await writeFile({json.dumps(str(done_path))}, 'done');
+            """
+            lock_path.touch(mode=0o600)
+            with lock_path.open("r+b") as lock_handle:
+                fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+                process = subprocess.Popen(
+                    ["node", "--input-type=module", "--eval", code],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                while not started_path.exists():
+                    if process.poll() is not None:
+                        stdout, stderr = process.communicate()
+                        self.fail(f"Node завершился до попытки блокировки: {stdout} {stderr}")
+                    time.sleep(0.01)
+                time.sleep(0.1)
+                self.assertFalse(done_path.exists())
+                fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+            stdout, stderr = process.communicate()
+            self.assertEqual(process.returncode, 0, f"{stdout}\n{stderr}")
+            self.assertTrue(done_path.exists())
+            saved = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(saved["requests"][0]["endpoint"], "node-cross-runtime")
 
     def test_full_run_and_resume_without_duplicates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

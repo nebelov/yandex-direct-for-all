@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
+import math
 import os
 import re
-import subprocess
-import sys
 import time
 from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -227,6 +227,7 @@ class QuotaPacer:
     def __init__(self, state_path: Path) -> None:
         self.state_path = state_path
         self.lock_path = state_path.with_suffix(f"{state_path.suffix}.lock")
+        self.lock_handle: Any = None
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.state_path.parent, 0o700)
 
@@ -245,101 +246,38 @@ class QuotaPacer:
                 not isinstance(item, dict)
                 or isinstance(item.get("at"), bool)
                 or not isinstance(item.get("at"), (int, float))
+                or not math.isfinite(item["at"])
                 or not isinstance(item.get("endpoint"), str)
                 or not isinstance(item.get("billed"), bool)
                 or isinstance(item.get("costUnits"), bool)
                 or not isinstance(item.get("costUnits"), (int, float))
+                or not math.isfinite(item["costUnits"])
             ):
                 raise RuntimeError("Состояние квоты Wordstat повреждено; неверная запись запроса")
-        if isinstance(state.get("nextAllowedAt"), bool) or not isinstance(state.get("nextAllowedAt"), (int, float)):
+        if (
+            isinstance(state.get("nextAllowedAt"), bool)
+            or not isinstance(state.get("nextAllowedAt"), (int, float))
+            or not math.isfinite(state["nextAllowedAt"])
+        ):
             raise RuntimeError("Состояние квоты Wordstat повреждено; nextAllowedAt имеет неверный тип")
         return state
 
     def _save(self, state: dict[str, Any]) -> None:
         write_json_atomic(self.state_path, state, mode=0o600)
 
-    @staticmethod
-    def _process_alive(pid: int) -> bool:
-        try:
-            os.kill(pid, 0)
-            return True
-        except ProcessLookupError:
-            return False
-        except PermissionError:
-            return True
-
-    @staticmethod
-    def _process_identity(pid: int) -> str | None:
-        try:
-            completed = subprocess.run(
-                ["/bin/ps", "-o", "lstart=", "-p", str(pid)],
-                check=True,
-                capture_output=True,
-                text=True,
-                env={**os.environ, "LANG": "C", "LC_ALL": "C"},
-            )
-        except (OSError, subprocess.CalledProcessError):
-            return None
-        started = completed.stdout.strip()
-        return f"{sys.platform}:{started}" if started else None
-
     def _acquire(self) -> None:
-        identity = self._process_identity(os.getpid())
-        if not identity:
-            raise RuntimeError("Не удалось определить идентичность процесса для блокировки квоты Wordstat")
-        while True:
-            candidate = self.lock_path.with_name(
-                f"{self.lock_path.name}.candidate-{os.getpid()}-{time.time_ns()}"
-            )
-            try:
-                descriptor = os.open(candidate, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-                with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-                    json.dump({
-                        "version": 2,
-                        "pid": os.getpid(),
-                        "processIdentity": identity,
-                        "acquiredAt": datetime.now(timezone.utc).isoformat(),
-                    }, handle)
-                    handle.write("\n")
-                    handle.flush()
-                    os.fsync(handle.fileno())
-                try:
-                    os.link(candidate, self.lock_path)
-                    return
-                finally:
-                    candidate.unlink(missing_ok=True)
-            except FileExistsError:
-                candidate.unlink(missing_ok=True)
-                try:
-                    owner = json.loads(self.lock_path.read_text(encoding="utf-8"))
-                except FileNotFoundError:
-                    continue
-                except Exception as exc:
-                    raise RuntimeError(f"Блокировка квоты Wordstat повреждена: {exc}") from exc
-                if not isinstance(owner, dict) or not isinstance(owner.get("pid"), int) or owner["pid"] <= 0:
-                    raise RuntimeError("Блокировка квоты Wordstat повреждена: отсутствует владелец процесса")
-                if not isinstance(owner.get("processIdentity"), str) or not owner["processIdentity"]:
-                    raise RuntimeError("Блокировка квоты Wordstat повреждена: отсутствует идентичность запуска процесса")
-                alive = self._process_alive(owner["pid"])
-                live_identity = self._process_identity(owner["pid"]) if alive else None
-                if alive and not live_identity:
-                    alive = self._process_alive(owner["pid"])
-                    if alive:
-                        raise RuntimeError("Не удалось проверить идентичность владельца блокировки квоты Wordstat")
-                if not alive or live_identity != owner["processIdentity"]:
-                    stale = self.lock_path.with_name(
-                        f"{self.lock_path.name}.stale-{os.getpid()}-{time.time_ns()}"
-                    )
-                    try:
-                        self.lock_path.replace(stale)
-                    except FileNotFoundError:
-                        continue
-                    stale.unlink(missing_ok=True)
-                    continue
-                time.sleep(0.025)
+        if self.lock_handle is not None:
+            raise RuntimeError("Повторный захват блокировки квоты Wordstat одним экземпляром запрещён")
+        self.lock_handle = self.lock_path.open("a+b")
+        os.chmod(self.lock_path, 0o600)
+        fcntl.flock(self.lock_handle.fileno(), fcntl.LOCK_EX)
 
     def _release(self) -> None:
-        self.lock_path.unlink(missing_ok=True)
+        if self.lock_handle is None:
+            return
+        fcntl.flock(self.lock_handle.fileno(), fcntl.LOCK_UN)
+        self.lock_handle.close()
+        self.lock_handle = None
 
     def before_request(self, billed: bool = True) -> None:
         while True:

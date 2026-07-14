@@ -290,44 +290,34 @@ describe('persistent Wordstat usage ledger', () => {
     expect(waits).toEqual([2000]);
   });
 
-  test('recovers an owner-recorded lock left by a dead process', async () => {
+  test('treats the persistent lock file as an OS advisory lock, not JSON state', async () => {
     const statePath = await quotaFixture();
-    await writeFile(`${statePath}.lock`, `${JSON.stringify({ version: 2, pid: 999999, processIdentity: 'dead:1', acquiredAt: '2026-07-14T00:00:00Z' })}\n`, { mode: 0o600 });
-    const checkedOwners = [];
-    const ledger = new WordstatUsageLedger({
-      statePath,
-      now: () => 200_000,
-      isProcessAlive: (pid) => { checkedOwners.push(pid); return false; },
-    });
+    await writeFile(`${statePath}.lock`, 'persistent advisory lock\n', { mode: 0o644 });
+    const ledger = new WordstatUsageLedger({ statePath, now: () => 200_000 });
     await ledger.reserve({ endpoint: '/v2/wordstat/topRequests', billed: true });
-    expect(checkedOwners).toEqual([999999]);
     expect((await ledger.snapshot()).requestsLastHour).toBe(1);
-    await expect(stat(`${statePath}.lock`)).rejects.toMatchObject({ code: 'ENOENT' });
+    expect((await stat(`${statePath}.lock`)).mode & 0o777).toBe(0o600);
+    expect(await readFile(`${statePath}.lock`, 'utf8')).toBe('persistent advisory lock\n');
   });
 
-  test('recovers a stale lock when the operating system reused the owner pid', async () => {
+  test('releases the OS lock when state validation fails', async () => {
     const statePath = await quotaFixture();
-    await writeFile(`${statePath}.lock`, `${JSON.stringify({ version: 2, pid: 4242, processIdentity: 'linux:old-start', acquiredAt: '2026-07-14T00:00:00Z' })}\n`, { mode: 0o600 });
-    const waits = [];
-    const ledger = new WordstatUsageLedger({
-      statePath,
-      isProcessAlive: () => true,
-      getProcessIdentity: (pid) => pid === 4242 ? 'linux:new-start' : 'linux:self-start',
-      sleep: async (ms) => waits.push(ms),
-    });
-    await ledger.reserve({ endpoint: '/v2/wordstat/topRequests', billed: true });
-    expect(waits).toEqual([]);
-    expect((await ledger.snapshot()).requestsLastHour).toBe(1);
-  });
-
-  test('rejects a corrupt lock instead of waiting forever', async () => {
-    const statePath = await quotaFixture();
-    await writeFile(`${statePath}.lock`, '{not-json\n', { mode: 0o600 });
-    const waits = [];
-    const ledger = new WordstatUsageLedger({ statePath, sleep: async (ms) => waits.push(ms) });
-    await expect(ledger.reserve({ endpoint: '/v2/wordstat/topRequests', billed: true })).rejects.toThrow(
-      'Блокировка квоты Wordstat повреждена',
+    await writeFile(statePath, '{not-json\n', { mode: 0o600 });
+    await expect(new WordstatUsageLedger({ statePath }).reserve({ endpoint: 'first', billed: true })).rejects.toThrow(
+      'Состояние квоты Wordstat повреждено',
     );
-    expect(waits).toEqual([]);
+    await writeFile(statePath, `${JSON.stringify({ version: 2, requests: [], nextAllowedAt: 0 })}\n`, { mode: 0o600 });
+    const second = new WordstatUsageLedger({ statePath, now: () => 300_000 });
+    await second.reserve({ endpoint: 'second', billed: true });
+    expect((await second.snapshot()).requestsLastHour).toBe(1);
+  });
+
+  test('rejects a missing Python lock helper before touching quota state', async () => {
+    const statePath = await quotaFixture();
+    const ledger = new WordstatUsageLedger({ statePath, pythonCommand: '/missing/python3' });
+    await expect(ledger.reserve({ endpoint: '/v2/wordstat/topRequests', billed: true })).rejects.toThrow(
+      'ENOENT',
+    );
+    await expect(stat(statePath)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });
