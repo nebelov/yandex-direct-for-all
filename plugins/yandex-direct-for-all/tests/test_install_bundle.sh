@@ -223,6 +223,34 @@ check_stale_transaction_preserves_user_change() {
   [[ "$(cat "$CODEX_HOME/state/yandex-direct-for-all/runs/$first_run/status")" == applied_pending ]]
 }
 
+check_both_pending_recovery_is_validated_before_any_write() {
+  export HOME="$root/both-stale-user-change/home"
+  export CODEX_HOME="$HOME/.codex"
+  export CLAUDE_HOME="$HOME/.claude"
+  mkdir -p "$HOME"
+  local first first_run codex_skill claude_skill codex_hash codex_manifest_hash
+  first="$("$installer" --target both --apply)"
+  first_run="${first##*RUN_ID=}"
+  first_run="${first_run%%$'\n'*}"
+  printf '%s\n' "applied_pending" > "$CODEX_HOME/state/yandex-direct-for-all/runs/$first_run/status"
+  printf '%s\n' "applied_pending" > "$CLAUDE_HOME/state/yandex-direct-for-all/runs/$first_run/status"
+  codex_skill="$CODEX_HOME/skills/yandex-wordstat/SKILL.md"
+  claude_skill="$CLAUDE_HOME/skills/yandex-wordstat/SKILL.md"
+  codex_hash="$(shasum -a 256 "$codex_skill" | awk '{print $1}')"
+  codex_manifest_hash="$(shasum -a 256 "$CODEX_HOME/state/yandex-direct-for-all/install-manifest.json" | awk '{print $1}')"
+  printf '\nuser change after interruption\n' >> "$claude_skill"
+  if "$installer" --target both --apply >"$root/both-stale-user-change.out" 2>&1; then
+    echo "Общее автовосстановление не должно менять первую среду при конфликте во второй" >&2
+    exit 1
+  fi
+  grep -q "Автоматическое восстановление остановлено" "$root/both-stale-user-change.out"
+  grep -q "user change after interruption" "$claude_skill"
+  [[ "$(shasum -a 256 "$codex_skill" | awk '{print $1}')" == "$codex_hash" ]]
+  [[ "$(shasum -a 256 "$CODEX_HOME/state/yandex-direct-for-all/install-manifest.json" | awk '{print $1}')" == "$codex_manifest_hash" ]]
+  [[ "$(cat "$CODEX_HOME/state/yandex-direct-for-all/runs/$first_run/status")" == applied_pending ]]
+  [[ "$(cat "$CLAUDE_HOME/state/yandex-direct-for-all/runs/$first_run/status")" == applied_pending ]]
+}
+
 manifest_run_id_for_test() {
   python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["run_id"])' "$1"
 }
@@ -235,4 +263,5 @@ check_apply_failure_restores_original_state
 check_second_target_failure_restores_both
 check_next_apply_recovers_stale_transaction
 check_stale_transaction_preserves_user_change
+check_both_pending_recovery_is_validated_before_any_write
 echo "install bundle contract: PASS"

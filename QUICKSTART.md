@@ -20,10 +20,10 @@
 
 Для Директа и Метрики уже есть общие приложения. Создавать своё приложение не требуется:
 
-    bash plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service direct
+    bash plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service direct --client-login 'логин-рекламодателя'
     bash plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service metrika
 
-Директ по умолчанию использует профиль legacy_direct, Метрика — master_yandex. Коды и токены не передаются параметрами командной строки. Готовность подтверждается только обязательным чтением соответствующей службы.
+Прямой рекламодатель указывает собственный логин, представитель агентства — логин клиента-рекламодателя. Директ по умолчанию использует профиль legacy_direct, Метрика — master_yandex. Коды и токены не передаются параметрами командной строки. Готовность подтверждается только обязательным чтением соответствующей службы.
 
 ## 4. Wordstat v2
 

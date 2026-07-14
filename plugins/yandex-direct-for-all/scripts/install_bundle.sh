@@ -287,10 +287,6 @@ recover_pending_target() {
       applying|applied_pending)
         backup="$root/backups/yandex-direct-for-all/$(basename "$run")"
         previous_manifest="$state/install-manifest.json"
-        if ! validate_pending_recovery "$kind" "$root" "$run" "$backup"; then
-          echo "Автоматическое восстановление остановлено: после прерывания изменены управляемые пути ($kind, $(basename "$run"))." >&2
-          return 7
-        fi
         recover_incomplete_install "$kind" "$root" "$run" "$backup" "$previous_manifest"
         echo "Восстановлена незавершённая установка: $kind ($(basename "$run"))" >&2
         ;;
@@ -326,6 +322,26 @@ validate_pending_recovery() {
       [[ ! -e "$marketplace" ]] || return 1
     fi
   fi
+}
+
+validate_pending_target() {
+  local kind="$1" root="$2"
+  local state="$root/state/yandex-direct-for-all"
+  local run status backup
+  [[ -d "$state/runs" ]] || return 0
+  for run in "$state"/runs/*; do
+    [[ -d "$run" && -f "$run/status" ]] || continue
+    status="$(cat "$run/status")"
+    case "$status" in
+      applying|applied_pending)
+        backup="$root/backups/yandex-direct-for-all/$(basename "$run")"
+        if ! validate_pending_recovery "$kind" "$root" "$run" "$backup"; then
+          echo "Автоматическое восстановление остановлено: после прерывания изменены управляемые пути ($kind, $(basename "$run"))." >&2
+          return 7
+        fi
+        ;;
+    esac
+  done
 }
 
 active_kind=""
@@ -580,6 +596,11 @@ fi
 
 if [[ "$mode" == apply ]]; then
   require_runtime_tools || exit 2
+  # Для нескольких сред сначала проверяем все незавершённые транзакции.
+  # Восстановление начинается только когда оно безопасно сразу везде.
+  for item in "${roots[@]}"; do
+    validate_pending_target "${item%%:*}" "${item#*:}"
+  done
   for item in "${roots[@]}"; do
     recover_pending_target "${item%%:*}" "${item#*:}"
   done

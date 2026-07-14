@@ -24,7 +24,7 @@
 
 - `skills/yandex-direct-client-lifecycle/scripts/yandex_search_batch.py` — обычная выдача;
 - `skills/yandex-direct-client-lifecycle/scripts/yandex_search_ads_batch.py` — рекламная выдача через официальный Search API с явным закрытым файлом доступа и пределом стоимости;
-- `skills/yandex-direct-client-lifecycle/scripts/yandex_browser_serp_batch.py` — необязательный диагностический снимок с видимым признаком капчи;
+- `skills/yandex-direct-client-lifecycle/scripts/yandex_browser_serp_batch.py` — необязательный диагностический снимок с видимым признаком капчи; перед отдельным запуском установите `playwright` и его браузер по официальной инструкции Playwright;
 - `skills/yandex-direct-client-lifecycle/scripts/firecrawl_scrape.py` — сохранение общедоступных страниц;
 - `skills/yandex-direct-client-lifecycle/scripts/sitemap_probe_batch.py` — карты сайта;
 - `scripts/collect_organic_serp.sh`, `scripts/collect_ad_serp.sh`, `scripts/collect_page_capture.sh`, `scripts/collect_sitemap.sh` — короткие обёртки.
