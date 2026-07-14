@@ -136,7 +136,7 @@ for path in [
     ast.parse(path.read_text(encoding="utf-8"))
 PY
 node --check "$PLUGIN_DIR/mcp/yandex-wordstat/src/index.mjs" >/dev/null
-node --check "$PLUGIN_DIR/mcp/yandex-wordstat/src/usage-ledger.mjs" >/dev/null
+node --check "$PLUGIN_DIR/mcp/yandex-wordstat/src/convert.mjs" >/dev/null
 python3 "$PLUGIN_DIR/mcp/yandex-wordstat/tests/test_wordstat_cloud_gateway_collect.py" >/dev/null
 
 python3 - <<PY

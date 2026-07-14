@@ -21,6 +21,7 @@ WEB_SEARCH_URL = "https://searchapi.api.cloud.yandex.net/v2/web/search"
 ROUTES = {"web", "generative"}
 REGIONS = {"ru", "tr", "en"}
 SECRET_INPUT_KEYS = {"api_key", "folder_id", "token", "credentials"}
+CONTROL_INPUT_KEYS = {"paid_search_approval", "approval_ref", "approved", "max_calls"}
 
 
 class SearchPolicyError(RuntimeError):
@@ -64,6 +65,8 @@ def validate_input_data(data: Dict[str, Any], required_keys: set[str]) -> Option
         return "Тело запроса должно быть объектом"
     if SECRET_INPUT_KEYS.intersection(data):
         return "Доступы нельзя передавать в теле вызова"
+    if CONTROL_INPUT_KEYS.intersection(data):
+        return "Разрешение платного вызова нельзя передавать в теле запроса"
     if missing_keys := required_keys - set(data):
         return f"Не хватает полей: {', '.join(sorted(missing_keys))}"
     query = data.get("query")
@@ -72,6 +75,25 @@ def validate_input_data(data: Dict[str, Any], required_keys: set[str]) -> Option
     if data.get("search_region") not in REGIONS:
         return "Область поиска должна быть ru, tr или en"
     return None
+
+
+def request_sha256(route: str, data: dict[str, Any]) -> str:
+    payload = {
+        "route": route,
+        "query": str(data.get("query") or ""),
+        "search_region": str(data.get("search_region") or ""),
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def validate_folder_and_expiry(approval: dict[str, Any], current: datetime) -> None:
+    if parse_time(str(approval.get("expires_at") or "")) <= current:
+        raise SearchPolicyError("Срок разрешения на платный поиск истёк")
+    _, folder_id = get_search_api_credentials()
+    folder_sha256 = hashlib.sha256(folder_id.encode("utf-8")).hexdigest()
+    if approval.get("folder_sha256") != folder_sha256:
+        raise SearchPolicyError("Разрешение относится к другой папке Yandex Cloud")
 
 
 def reserve_approved_call(approval: dict[str, Any], route: str, ledger_path: Path, now: datetime) -> str:
@@ -120,24 +142,22 @@ def authorize_paid_call(route: str, data: dict[str, Any], now: datetime | None =
     if mode == "disabled":
         raise SearchPolicyError("Платный Search API выключен; выберите ручной или заранее разрешённый режим")
     if mode == "manual":
-        approval = data.get("paid_search_approval")
-        if not isinstance(approval, dict) or approval.get("approved") is not True:
-            raise SearchPolicyError("Ручной платный вызов требует paid_search_approval.approved=true")
-        if approval.get("route") != route or approval.get("max_calls") != 1:
-            raise SearchPolicyError("Ручное разрешение должно относиться к точному маршруту и одному вызову")
-        approval_ref = str(approval.get("approval_ref") or "").strip()
-        if not approval_ref:
-            raise SearchPolicyError("Ручное разрешение не содержит approval_ref")
+        if CONTROL_INPUT_KEYS.intersection(data):
+            raise SearchPolicyError("Тело вызова не может подтверждать собственный платный запрос")
+        approval_name = os.environ.get("YANDEX_SEARCH_APPROVAL_FILE", "").strip()
         ledger_name = os.environ.get("YANDEX_SEARCH_USAGE_LEDGER", "").strip()
-        if not ledger_name:
-            raise SearchPolicyError("Ручной режим требует закрытый журнал использования")
+        if not approval_name or not ledger_name:
+            raise SearchPolicyError("Ручной режим требует закрытые файлы разрешения и журнала")
+        approval = private_json(Path(approval_name).expanduser().resolve())
+        if approval.get("approved") is not True:
+            raise SearchPolicyError("Владелец не разрешил ручной платный вызов")
+        if approval.get("routes") != [route] or approval.get("max_calls") != 1:
+            raise SearchPolicyError("Ручное разрешение должно относиться к точному маршруту и одному вызову")
         current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-        return reserve_approved_call(
-            {"approval_ref": approval_ref, "max_calls": 1},
-            route,
-            Path(ledger_name).expanduser().resolve(),
-            current,
-        )
+        validate_folder_and_expiry(approval, current)
+        if approval.get("request_sha256") != request_sha256(route, data):
+            raise SearchPolicyError("Ручное разрешение относится к другому запросу")
+        return reserve_approved_call(approval, route, Path(ledger_name).expanduser().resolve(), current)
     if mode != "approved":
         raise SearchPolicyError("YANDEX_SEARCH_ROUTE должен быть disabled, manual или approved")
 
@@ -149,12 +169,7 @@ def authorize_paid_call(route: str, data: dict[str, Any], now: datetime | None =
     if approval.get("approved") is not True or route not in approval.get("routes", []):
         raise SearchPolicyError("Маршрут не входит в разрешённую область")
     current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    if parse_time(str(approval.get("expires_at") or "")) <= current:
-        raise SearchPolicyError("Срок разрешения на платный поиск истёк")
-    _, folder_id = get_search_api_credentials()
-    folder_sha256 = hashlib.sha256(folder_id.encode("utf-8")).hexdigest()
-    if approval.get("folder_sha256") != folder_sha256:
-        raise SearchPolicyError("Разрешение относится к другой папке Yandex Cloud")
+    validate_folder_and_expiry(approval, current)
     return reserve_approved_call(approval, route, Path(ledger_name).expanduser().resolve(), current)
 
 

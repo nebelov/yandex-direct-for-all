@@ -40,16 +40,18 @@ def ensure_dir(path):
     os.makedirs(path, exist_ok=True)
 
 
-def api_call(endpoint, method, params, token, login, version="v501"):
-    base = API_V501 if version == "v501" else API_V5
+def api_call(endpoint, method, params, token, login, version="v501", environment="production"):
+    host = "api-sandbox.direct.yandex.com" if environment == "sandbox" else "api.direct.yandex.com"
+    base = f"https://{host}/json/{version}"
     url = f"{base}/{endpoint}"
     body = json.dumps({"method": method, "params": params}).encode("utf-8")
     headers = {
         "Authorization": f"Bearer {token}",
-        "Client-Login": login,
         "Content-Type": "application/json",
         "Accept-Language": "ru",
     }
+    if login:
+        headers["Client-Login"] = login
     attempt = 0
     while True:
         req = urllib.request.Request(url, data=body, headers=headers)
@@ -78,6 +80,7 @@ def report_call(
     extra_filters=None,
     goals=None,
     attribution_models=None,
+    environment="production",
 ):
     params = {
         "SelectionCriteria": {
@@ -104,7 +107,6 @@ def report_call(
     body = json.dumps({"params": params}).encode("utf-8")
     headers = {
         "Authorization": f"Bearer {token}",
-        "Client-Login": login,
         "Content-Type": "application/json",
         "processingMode": "auto",
         "returnMoneyInMicros": "false",
@@ -112,10 +114,13 @@ def report_call(
         "skipColumnHeader": "false",
         "skipReportSummary": "true",
     }
+    if login:
+        headers["Client-Login"] = login
 
     attempt = 0
     while True:
-        req = urllib.request.Request(f"{API_V5}/reports", data=body, headers=headers)
+        host = "api-sandbox.direct.yandex.com" if environment == "sandbox" else "api.direct.yandex.com"
+        req = urllib.request.Request(f"https://{host}/json/v5/reports", data=body, headers=headers)
         try:
             with urllib.request.urlopen(req) as resp:
                 status = resp.status
@@ -237,6 +242,7 @@ def collect_report_group(
     extra_filters=None,
     goals=None,
     attribution_models=None,
+    environment="production",
 ):
     files = []
     for campaign_id in campaign_ids:
@@ -253,6 +259,7 @@ def collect_report_group(
             extra_filters=extra_filters,
             goals=goals,
             attribution_models=attribution_models,
+            environment=environment,
         )
         prefixed = prepend_column(tsv, "CampaignId", campaign_id)
         path = os.path.join(outdir, f"{stem}_{campaign_id}.tsv")
@@ -302,7 +309,7 @@ def collect_live_ads(campaign_ids, access, outdir):
     return files, all_ads
 
 
-def collect_ad_images(all_ads, token, login, outdir):
+def collect_ad_images(all_ads, token, login, outdir, environment="production"):
     hashes = []
     seen = set()
     for ad in all_ads:
@@ -327,6 +334,7 @@ def collect_ad_images(all_ads, token, login, outdir):
             token,
             login,
             version="v5",
+            environment=environment,
         )
         rows.extend(result.get("result", {}).get("AdImages", []))
         time.sleep(1)
@@ -424,6 +432,7 @@ def main():
             extra_filters=[{"Field": "AdNetworkType", "Operator": "EQUALS", "Values": ["AD_NETWORK"]}],
             goals=placement_goals,
             attribution_models=placement_attr_models,
+            environment=access.environment,
         )
 
     if args.mode in ("all", "ads") and all_campaigns:
@@ -447,6 +456,7 @@ def main():
             ads_dir,
             goals=ad_goals,
             attribution_models=ad_attr_models,
+            environment=access.environment,
         )
         print(f"Collecting live ads payload for {len(all_campaigns)} campaigns...")
         collect_live_ads(all_campaigns, access, ad_texts_dir)

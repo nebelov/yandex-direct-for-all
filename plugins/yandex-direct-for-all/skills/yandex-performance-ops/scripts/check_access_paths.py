@@ -130,8 +130,6 @@ def load_direct_access(access_file: str | None = None) -> DirectAccess:
         raise AccessError(f"Для выбранной среды отсутствует {expected_env}")
 
     client_login = str(config.get("client_login") or os.environ.get("YANDEX_DIRECT_CLIENT_LOGIN") or "").strip()
-    if not client_login:
-        raise AccessError("Не задана обязательная область клиента YANDEX_DIRECT_CLIENT_LOGIN")
     return DirectAccess(token=token, client_login=client_login, environment=environment)
 
 
@@ -185,15 +183,17 @@ def direct_api_get(
         raise AccessError("Запрошен неподдерживаемый маршрут чтения Директа")
     host = "api-sandbox.direct.yandex.com" if access.environment == "sandbox" else "api.direct.yandex.com"
     body = _canonical_bytes({"method": "get", "params": params})
+    headers = {
+        "Authorization": f"Bearer {access.token}",
+        "Accept-Language": "ru",
+        "Content-Type": "application/json; charset=utf-8",
+    }
+    if access.client_login:
+        headers["Client-Login"] = access.client_login
     request = urllib.request.Request(
         f"https://{host}/json/{version}/{service}",
         data=body,
-        headers={
-            "Authorization": f"Bearer {access.token}",
-            "Client-Login": access.client_login,
-            "Accept-Language": "ru",
-            "Content-Type": "application/json; charset=utf-8",
-        },
+        headers=headers,
         method="POST",
     )
     try:

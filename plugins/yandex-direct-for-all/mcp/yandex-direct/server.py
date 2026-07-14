@@ -58,8 +58,6 @@ def resolve_runtime() -> tuple[str, str, str, Path]:
     if not token:
         raise ValueError(f"Для среды {environment} не задан отдельный токен чтения.")
     login = os.environ.get("YANDEX_DIRECT_CLIENT_LOGIN", "").strip()
-    if not login:
-        raise ValueError("YANDEX_DIRECT_CLIENT_LOGIN обязателен: чтение общего кабинета запрещено.")
     output = Path(
         os.environ.get(
             "YANDEX_DIRECT_OUTPUT_DIR",
@@ -79,8 +77,9 @@ def safe_headers(token: str, login: str, reports: bool) -> dict[str, str]:
         "Authorization": f"Bearer {token}",
         "Accept-Language": "ru",
         "Content-Type": "application/json; charset=utf-8",
-        "Client-Login": login,
     }
+    if login:
+        headers["Client-Login"] = login
     if reports:
         headers["processingMode"] = "auto"
     return headers

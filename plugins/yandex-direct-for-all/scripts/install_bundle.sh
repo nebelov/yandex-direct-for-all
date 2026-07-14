@@ -110,12 +110,71 @@ tree_hash() {
 manifest_value() {
   local manifest="$1" rel="$2"
   [[ -f "$manifest" ]] || return 0
-  awk -F '\t' -v key="$rel" '$1 == key {print $2; exit}' "$manifest"
+  MANIFEST_PATH="$manifest" MANAGED_PATH="$rel" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+payload = json.loads(Path(os.environ["MANIFEST_PATH"]).read_text(encoding="utf-8"))
+for item in payload.get("paths", []):
+    if item.get("path") == os.environ["MANAGED_PATH"]:
+        print(item.get("installed_sha256", item.get("sha256", "")))
+        break
+PY
+}
+
+manifest_run_id() {
+  local manifest="$1"
+  [[ -f "$manifest" ]] || return 0
+  MANIFEST_PATH="$manifest" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+print(json.loads(Path(os.environ["MANIFEST_PATH"]).read_text(encoding="utf-8")).get("run_id", ""))
+PY
+}
+
+write_manifest_json() {
+  local rows="$1" destination="$2" owning_run_id="$3"
+  MANIFEST_ROWS="$rows" MANIFEST_PATH="$destination" MANIFEST_RUN_ID="$owning_run_id" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+rows = []
+for line in Path(os.environ["MANIFEST_ROWS"]).read_text(encoding="utf-8").splitlines():
+    if not line:
+        continue
+    parts = line.split("\t")
+    if len(parts) == 2:
+        rel, source_digest = parts
+        installed_digest = source_digest
+    else:
+        rel, source_digest, installed_digest = parts
+    rows.append({
+        "path": rel,
+        "source_sha256": source_digest,
+        "installed_sha256": installed_digest,
+    })
+destination = Path(os.environ["MANIFEST_PATH"])
+temporary = destination.with_name(f".{destination.name}.{os.getpid()}.tmp")
+temporary.write_text(
+    json.dumps(
+        {"schema_version": 1, "run_id": os.environ["MANIFEST_RUN_ID"], "paths": rows},
+        ensure_ascii=False,
+        indent=2,
+    ) + "\n",
+    encoding="utf-8",
+)
+os.chmod(temporary, 0o600)
+temporary.replace(destination)
+PY
 }
 
 check_target() {
   local kind="$1" root="$2"
-  local manifest="$root/.ydfall-install/manifest.tsv"
+  local manifest="$root/state/yandex-direct-for-all/install-manifest.json"
   local conflicts=0
   echo "Среда: $kind ($root)"
   for rel in "${managed_paths[@]}"; do
@@ -176,17 +235,19 @@ PY
 
 install_target() {
   local kind="$1" root="$2"
-  local state="$root/.ydfall-install"
-  local run="$root/.ydfall-install/runs/$run_id"
-  local previous_manifest="$state/manifest.tsv"
+  local state="$root/state/yandex-direct-for-all"
+  local run="$state/runs/$run_id"
+  local backup="$root/backups/yandex-direct-for-all/$run_id"
+  local previous_manifest="$state/install-manifest.json"
   local next_manifest="$run/manifest.after.tsv"
-  mkdir -p "$run/backups" "$run/stages"
-  chmod 700 "$state" "$state/runs" "$run" "$run/backups" "$run/stages"
-  [[ -f "$previous_manifest" ]] && cp "$previous_manifest" "$run/manifest.before.tsv" || : > "$run/manifest.before.absent"
+  mkdir -p "$run/stages" "$backup"
+  chmod 700 "$state" "$state/runs" "$run" "$run/stages" "$root/backups" "$root/backups/yandex-direct-for-all" "$backup"
+  [[ -f "$previous_manifest" ]] && cp "$previous_manifest" "$run/install-manifest.before.json" || : > "$run/install-manifest.before.absent"
   : > "$run/operations.tsv"
+  : > "$run/pre-state.tsv"
   : > "$run/prepared.tsv"
   : > "$next_manifest"
-  chmod 600 "$run/operations.tsv" "$run/prepared.tsv" "$next_manifest"
+  chmod 600 "$run/operations.tsv" "$run/pre-state.tsv" "$run/prepared.tsv" "$next_manifest"
 
   local index=0
   for rel in "${managed_paths[@]}"; do
@@ -215,7 +276,7 @@ install_target() {
   done
 
   while IFS=$'\t' read -r rel index src_hash; do
-    local dest parent stage existed
+    local dest parent stage existed old_hash
     [[ -n "$rel" ]] || continue
     dest="$root/$rel"
     parent="$(dirname "$dest")"
@@ -224,14 +285,23 @@ install_target() {
     existed=0
     if [[ -e "$dest" ]]; then
       existed=1
-      mv "$dest" "$run/backups/$index"
+      old_hash="$(tree_hash "$dest")"
+      printf '%s\tpresent\tdirectory\t%s\t%s\n' "$rel" "$old_hash" "$index" >> "$run/pre-state.tsv"
+      mv "$dest" "$backup/$index"
+    else
+      printf '%s\tabsent\t-\t-\t%s\n' "$rel" "$index" >> "$run/pre-state.tsv"
     fi
     mv "$stage" "$dest"
     printf '%s\t%s\t%s\n' "$rel" "$existed" "$index" >> "$run/operations.tsv"
-    printf '%s\t%s\n' "$rel" "$src_hash" >> "$next_manifest"
+    local installed_hash
+    installed_hash="$(tree_hash "$dest")"
+    [[ "$installed_hash" == "$src_hash" ]] || {
+      echo "Ошибка проверки установленного пути: $rel" >&2
+      exit 4
+    }
+    printf '%s\t%s\t%s\n' "$rel" "$src_hash" "$installed_hash" >> "$next_manifest"
   done < "$run/prepared.tsv"
-  cp "$next_manifest" "$previous_manifest"
-  chmod 600 "$previous_manifest"
+  write_manifest_json "$next_manifest" "$previous_manifest" "$run_id"
 
   if [[ "$kind" == codex ]]; then
     local marketplace="$HOME/.agents/plugins/marketplace.json"
@@ -241,6 +311,7 @@ install_target() {
       : > "$run/marketplace.before.absent"
     fi
     write_marketplace
+    shasum -a 256 "$marketplace" | awk '{print $1}' > "$run/marketplace.after.sha256"
   fi
   printf '%s\n' "applied" > "$run/status"
   chmod 600 "$run/status"
@@ -248,27 +319,50 @@ install_target() {
 
 rollback_target() {
   local kind="$1" root="$2"
-  local run="$root/.ydfall-install/runs/$rollback_id"
+  local state="$root/state/yandex-direct-for-all"
+  local run="$state/runs/$rollback_id"
+  local backup="$root/backups/yandex-direct-for-all/$rollback_id"
+  local current_manifest="$state/install-manifest.json"
   [[ -d "$run" ]] || { echo "Нет записи отката $rollback_id для $kind" >&2; return 5; }
   [[ "$(cat "$run/status" 2>/dev/null || true)" == applied ]] || {
     echo "Запись $rollback_id уже использована или неполна" >&2
     return 5
   }
+  [[ "$(manifest_run_id "$current_manifest")" == "$rollback_id" ]] || {
+    echo "Откат запрещён: $rollback_id не является последней установленной версией для $kind" >&2
+    return 5
+  }
+
+  # Сначала проверяем всё состояние; до завершения этой проверки ничего не меняется.
+  while IFS=$'\t' read -r rel _ expected_hash; do
+    [[ -n "$rel" ]] || continue
+    if [[ ! -e "$root/$rel" || "$(tree_hash "$root/$rel")" != "$expected_hash" ]]; then
+      echo "Откат запрещён: после установки изменён управляемый путь $rel" >&2
+      return 5
+    fi
+  done < "$run/manifest.after.tsv"
+  if [[ "$kind" == codex ]]; then
+    local marketplace="$HOME/.agents/plugins/marketplace.json"
+    if [[ ! -f "$marketplace" || "$(shasum -a 256 "$marketplace" | awk '{print $1}')" != "$(cat "$run/marketplace.after.sha256")" ]]; then
+      echo "Откат запрещён: после установки изменён marketplace.json" >&2
+      return 5
+    fi
+  fi
+
   while IFS=$'\t' read -r rel existed index; do
     [[ -n "$rel" ]] || continue
     rm -rf "$root/$rel"
     if [[ "$existed" == 1 ]]; then
       mkdir -p "$(dirname "$root/$rel")"
-      mv "$run/backups/$index" "$root/$rel"
+      mv "$backup/$index" "$root/$rel"
     fi
   done < "$run/operations.tsv"
-  if [[ -f "$run/manifest.before.tsv" ]]; then
-    cp "$run/manifest.before.tsv" "$root/.ydfall-install/manifest.tsv"
+  if [[ -f "$run/install-manifest.before.json" ]]; then
+    cp "$run/install-manifest.before.json" "$current_manifest"
   else
-    rm -f "$root/.ydfall-install/manifest.tsv"
+    rm -f "$current_manifest"
   fi
   if [[ "$kind" == codex ]]; then
-    local marketplace="$HOME/.agents/plugins/marketplace.json"
     if [[ -f "$run/marketplace.before.json" ]]; then
       mkdir -p "$(dirname "$marketplace")"
       cp "$run/marketplace.before.json" "$marketplace"
@@ -276,6 +370,18 @@ rollback_target() {
       rm -f "$marketplace"
     fi
   fi
+
+  while IFS=$'\t' read -r rel old_state _ old_hash _; do
+    [[ -n "$rel" ]] || continue
+    if [[ "$old_state" == absent ]]; then
+      [[ ! -e "$root/$rel" ]] || { echo "Ошибка проверки отката: $rel должен отсутствовать" >&2; return 6; }
+    else
+      [[ -e "$root/$rel" && "$(tree_hash "$root/$rel")" == "$old_hash" ]] || {
+        echo "Ошибка проверки отката: $rel не совпал с исходным состоянием" >&2
+        return 6
+      }
+    fi
+  done < "$run/pre-state.tsv"
   printf '%s\n' "rolled_back" > "$run/status"
   echo "ОТКАЧЕНО: $kind"
 }

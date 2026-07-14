@@ -13,10 +13,12 @@
 ```json
 {
   "environment": "production",
-  "client_login": "ваш-логин-клиента",
   "token_file": ".codex/auth/direct_oauth_token.json"
 }
 ```
+
+Прямой рекламодатель не добавляет `client_login`. Представитель агентства
+добавляет `"client_login": "логин-клиента-рекламодателя"`.
 
 Задайте файлу права `0600`, затем проверьте его:
 

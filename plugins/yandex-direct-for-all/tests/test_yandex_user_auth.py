@@ -156,7 +156,7 @@ class YandexUserAuthTests(unittest.TestCase):
             self.assertNotIn("synthetic-token", saved)
             self.assertNotIn(expected, saved)
 
-    def test_direct_preflight_requires_client_scope_before_network(self) -> None:
+    def test_direct_advertiser_preflight_reads_as_token_owner_without_client_login(self) -> None:
         with tempfile.TemporaryDirectory() as root:
             auth_root = Path(root)
             common.ensure_private_dir(auth_root)
@@ -165,10 +165,40 @@ class YandexUserAuthTests(unittest.TestCase):
                 {"access_token": "synthetic-token", "oauth_client_id": "expected-app"},
             )
             args = preflight.build_parser().parse_args(["--service", "direct", "--auth-root", root])
-            with mock.patch.object(preflight.requests, "get") as identity:
-                with self.assertRaisesRegex(ValueError, "обязателен"):
-                    preflight.run_check(args)
-            identity.assert_not_called()
+            with mock.patch.object(
+                preflight.requests, "get", return_value=Response(200, {"client_id": "expected-app"})
+            ), mock.patch.object(
+                preflight.requests,
+                "post",
+                return_value=Response(200, {"result": {"Campaigns": []}}),
+            ) as service_call:
+                result, _ = preflight.run_check(args)
+            self.assertEqual(result["verdict"], "ready")
+            self.assertEqual(result["direct_scope"], "token_owner")
+            headers = service_call.call_args.kwargs["headers"]
+            self.assertNotIn("Client-Login", headers)
+
+    def test_direct_agency_preflight_sends_client_login(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            auth_root = Path(root)
+            common.ensure_private_dir(auth_root)
+            common.write_json(
+                common.auth_token_path(auth_root, "direct"),
+                {"access_token": "synthetic-token", "oauth_client_id": "expected-app"},
+            )
+            args = preflight.build_parser().parse_args([
+                "--service", "direct", "--auth-root", root, "--client-login", "example-client"
+            ])
+            with mock.patch.object(
+                preflight.requests, "get", return_value=Response(200, {"client_id": "expected-app"})
+            ), mock.patch.object(
+                preflight.requests,
+                "post",
+                return_value=Response(200, {"result": {"Campaigns": []}}),
+            ) as service_call:
+                result, _ = preflight.run_check(args)
+            self.assertEqual(result["direct_scope"], "agency_client")
+            self.assertEqual(service_call.call_args.kwargs["headers"]["Client-Login"], "example-client")
 
     def test_client_id_mismatch_blocks_service_read(self) -> None:
         with tempfile.TemporaryDirectory() as root:

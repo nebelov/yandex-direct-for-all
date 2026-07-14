@@ -35,6 +35,7 @@ class GateTests(unittest.TestCase):
             "reversible": True,
             "reversal_fields": ["Name"],
             "estimated_api_units": 1,
+            "max_api_units": 1,
         }
 
     def irreversible_operation(self) -> dict:
@@ -55,6 +56,7 @@ class GateTests(unittest.TestCase):
             "reversible": False,
             "irreversible_reason": "Архивирование не возвращается автоматическим обратным пакетом",
             "estimated_api_units": 1,
+            "max_api_units": 1,
         }
 
     def pack(self, approval_path: Path) -> dict:
@@ -233,16 +235,36 @@ class GateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             pack = self.pack(root / "approval.json")
-            pack["max_api_units"] = 2
+            pack["max_api_units"] = 5
             pack["operations"] = [self.operation("first"), self.operation("second")]
             prepared = self.prepare(root, pack)
             before = {"result": {"Campaigns": [{"Id": 1, "Name": "Старое название"}]}}
             after = {"result": {"Campaigns": [{"Id": 1, "Name": "Новое название"}]}}
             reader = mock.Mock(side_effect=[before, before, after])
-            writer = mock.Mock(return_value=({"result": {"UpdateResults": [{"Id": 1}]}}, 2))
+            writer = mock.Mock(return_value=({"result": {"UpdateResults": [{"Id": 1}]}}, 4))
             result = gate.execute(prepared, writer=writer, reader=reader)
             self.assertEqual(writer.call_count, 1)
-            self.assertEqual(result["operations"][1]["status"], "budget_exhausted_before_write")
+            self.assertEqual(result["operations"][0]["status"], "api_units_bound_exceeded")
+            self.assertEqual(result["api_units"], 4)
+
+    def test_reserved_operation_limit_blocks_next_call_before_network(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pack = self.pack(root / "approval.json")
+            first = self.operation("first")
+            first["max_api_units"] = 4
+            second = self.operation("second")
+            second["max_api_units"] = 2
+            pack["max_api_units"] = 6
+            pack["operations"] = [first, second]
+            prepared = self.prepare(root, pack)
+            before = {"result": {"Campaigns": [{"Id": 1, "Name": "Старое название"}]}}
+            after = {"result": {"Campaigns": [{"Id": 1, "Name": "Новое название"}]}}
+            reader = mock.Mock(side_effect=[before, before, after])
+            writer = mock.Mock(return_value=({"result": {"UpdateResults": [{"Id": 1}]}}, 5))
+            result = gate.execute(prepared, writer=writer, reader=reader)
+            self.assertEqual(writer.call_count, 1)
+            self.assertEqual(result["operations"][0]["status"], "api_units_bound_exceeded")
 
 
 if __name__ == "__main__":

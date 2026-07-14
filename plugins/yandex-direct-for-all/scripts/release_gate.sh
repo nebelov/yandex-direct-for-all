@@ -62,8 +62,11 @@ spec.loader.exec_module(module)
 body = {
     "query": "synthetic query",
     "search_region": "ru",
-    "paid_search_approval": {"approved": True, "route": "web", "max_calls": 1, "approval_ref": "SYNTHETIC_APPROVAL"},
 }
+assert module.validate_input_data({
+    **body,
+    "paid_search_approval": {"approved": True},
+}, {"query", "search_region"})
 with mock.patch.dict(os.environ, {"YANDEX_SEARCH_ROUTE": "disabled"}, clear=True):
     try:
         module.authorize_paid_call("web", body)
@@ -73,9 +76,24 @@ with mock.patch.dict(os.environ, {"YANDEX_SEARCH_ROUTE": "disabled"}, clear=True
         raise AssertionError("disabled paid search reached authorization")
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
+    folder = "SYNTHETIC_FOLDER"
+    manual_approval = root / "manual-approval.json"
+    manual_approval.write_text(json.dumps({
+        "approved": True,
+        "approval_ref": "SYNTHETIC_APPROVAL",
+        "routes": ["web"],
+        "max_calls": 1,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        "folder_sha256": hashlib.sha256(folder.encode()).hexdigest(),
+        "request_sha256": module.request_sha256("web", body),
+    }), encoding="utf-8")
+    os.chmod(manual_approval, 0o600)
     manual_ledger = root / "manual" / "ledger.json"
     with mock.patch.dict(os.environ, {
         "YANDEX_SEARCH_ROUTE": "manual",
+        "YANDEX_SEARCH_API_KEY": "SYNTHETIC_KEY",
+        "YANDEX_SEARCH_FOLDER_ID": folder,
+        "YANDEX_SEARCH_APPROVAL_FILE": str(manual_approval),
         "YANDEX_SEARCH_USAGE_LEDGER": str(manual_ledger),
     }, clear=True):
         assert module.authorize_paid_call("web", body) == "SYNTHETIC_APPROVAL"
@@ -91,7 +109,32 @@ with tempfile.TemporaryDirectory() as directory:
             pass
         else:
             raise AssertionError("manual approval crossed routes")
-    folder = "SYNTHETIC_FOLDER"
+        try:
+            module.authorize_paid_call("web", {
+                **body,
+                "paid_search_approval": {"approved": True, "approval_ref": "SELF_APPROVED"},
+            })
+        except module.SearchPolicyError:
+            pass
+        else:
+            raise AssertionError("request body self-approved a paid call")
+    wrong_manual_approval = json.loads(manual_approval.read_text(encoding="utf-8"))
+    wrong_manual_approval["approval_ref"] = "SYNTHETIC_OTHER_QUERY"
+    manual_approval.write_text(json.dumps(wrong_manual_approval), encoding="utf-8")
+    os.chmod(manual_approval, 0o600)
+    with mock.patch.dict(os.environ, {
+        "YANDEX_SEARCH_ROUTE": "manual",
+        "YANDEX_SEARCH_API_KEY": "SYNTHETIC_KEY",
+        "YANDEX_SEARCH_FOLDER_ID": folder,
+        "YANDEX_SEARCH_APPROVAL_FILE": str(manual_approval),
+        "YANDEX_SEARCH_USAGE_LEDGER": str(root / "manual-other-ledger.json"),
+    }, clear=True):
+        try:
+            module.authorize_paid_call("web", {"query": "other query", "search_region": "ru"})
+        except module.SearchPolicyError:
+            pass
+        else:
+            raise AssertionError("manual approval crossed exact query")
     approval = root / "approval.json"
     approval.write_text(json.dumps({
         "approved": True,
@@ -122,6 +165,43 @@ with tempfile.TemporaryDirectory() as directory:
     assert stat.S_IMODE(ledger.stat().st_mode) == 0o600
     assert stat.S_IMODE(ledger.parent.stat().st_mode) == 0o700
     assert "query" not in saved and "SYNTHETIC_KEY" not in saved
+PY
+
+python3 - <<'PY'
+import sys
+from pathlib import Path
+from unittest import mock
+
+scripts = Path("plugins/yandex-direct-for-all/skills/yandex-performance-ops/scripts").resolve()
+sys.path.insert(0, str(scripts))
+import change_tracker as tracker
+
+params = {"SelectionCriteria": {}, "FieldNames": ["Id"]}
+with mock.patch.object(tracker, "api_call", side_effect=[
+    {"result": {"Campaigns": [{"Id": 1}], "LimitedBy": 1}},
+    {"result": {"Campaigns": [{"Id": 2}]}},
+]):
+    complete = tracker.fetch_paginated("campaigns", "get", params, "Campaigns", "TOKEN", "LOGIN")
+assert complete.manifest.complete and complete.manifest.pages == 2 and complete.manifest.objects == 2
+assert len(complete.manifest.checksum) == 64
+
+with mock.patch.object(tracker, "api_call", return_value={"result": {"Campaigns": []}}):
+    empty = tracker.fetch_paginated("campaigns", "get", params, "Campaigns", "TOKEN", "LOGIN")
+assert empty.manifest.complete and empty.manifest.pages == 1 and empty.manifest.objects == 0
+
+with mock.patch.object(tracker, "api_call", side_effect=[
+    {"result": {"Campaigns": [{"Id": 1}], "LimitedBy": 1}},
+    {"result": {"Campaigns": [{"Id": 1}], "LimitedBy": 2}},
+]):
+    repeated = tracker.fetch_paginated("campaigns", "get", params, "Campaigns", "TOKEN", "LOGIN")
+assert not repeated.manifest.complete and repeated.manifest.pages == 1 and repeated.manifest.objects == 1
+
+with mock.patch.object(tracker, "api_call", side_effect=[
+    {"result": {"Campaigns": [{"Id": 1}], "LimitedBy": 1}},
+    None,
+]):
+    partial = tracker.fetch_paginated("campaigns", "get", params, "Campaigns", "TOKEN", "LOGIN")
+assert not partial.manifest.complete and partial.manifest.pages == 1 and partial.manifest.objects == 1
 PY
 
 python3 - <<'PY'

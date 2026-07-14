@@ -5,7 +5,7 @@
 ## Wordstat v2
 
 - mcp/yandex-wordstat/src/index.mjs — сервер Wordstat v2.
-- mcp/yandex-wordstat/src/usage-ledger.mjs — общий межпроцессный учёт скорости и почасовой стоимости.
+- mcp/yandex-wordstat/src/convert.mjs — преобразования Wordstat и общий межпроцессный учёт скорости и почасовой стоимости.
 - mcp/yandex-wordstat/scripts/wordstat_cloud_gateway_collect.py — файловый сбор исходных ответов с продолжением.
 - skills/yandex-performance-ops/scripts/normalize_wordstat_regions.py — нормализация регионов.
 - skills/yandex-performance-ops/scripts/render_wordstat_geo.py — представление географии.

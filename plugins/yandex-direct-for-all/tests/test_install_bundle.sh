@@ -18,7 +18,7 @@ check_target() {
   export CLAUDE_HOME="$HOME/.claude"
   mkdir -p "$HOME"
 
-  local plan first run_id skill plugin
+  local plan first second run_id second_run_id skill plugin state
   plan="$("$installer" --target "$target")"
   [[ "$plan" == *"Запись не выполнялась"* ]]
   if [[ "$target" == codex ]]; then
@@ -33,6 +33,14 @@ check_target() {
   first="$("$installer" --target "$target" --apply)"
   run_id="${first##*RUN_ID=}"
   run_id="${run_id%%$'\n'*}"
+  if [[ "$target" == codex ]]; then
+    state="$CODEX_HOME/state/yandex-direct-for-all"
+  else
+    state="$CLAUDE_HOME/state/yandex-direct-for-all"
+  fi
+  [[ -f "$state/install-manifest.json" ]]
+  [[ -f "$state/runs/$run_id/pre-state.tsv" ]]
+  grep -q '"run_id":' "$state/install-manifest.json"
   [[ -f "$plugin/config/yandex_oauth_public_profiles.json" ]]
   [[ -f "$skill" ]]
   [[ -f "${plugin%/plugins/yandex-direct-for-all}/mcp/yandex-wordstat/src/index.mjs" ]]
@@ -44,7 +52,11 @@ check_target() {
     [[ -f "$HOME/.agents/plugins/marketplace.json" ]]
   fi
 
-  "$installer" --target "$target" --apply >/dev/null
+  second="$("$installer" --target "$target" --apply)"
+  second_run_id="${second##*RUN_ID=}"
+  second_run_id="${second_run_id%%$'\n'*}"
+  [[ "$second_run_id" != "$run_id" ]]
+  cp "$skill" "$root/$target-skill.after-install"
   printf '\nuser change\n' >> "$skill"
   if "$installer" --target "$target" --apply >"$root/$target-conflict.out" 2>&1; then
     echo "Ожидался отказ при пользовательском изменении: $target" >&2
@@ -53,9 +65,33 @@ check_target() {
   grep -q "КОНФЛИКТ" "$root/$target-conflict.out"
   grep -q "user change" "$skill"
 
+  if "$installer" --target "$target" --rollback "$second_run_id" >"$root/$target-unsafe-rollback.out" 2>&1; then
+    echo "Ожидался отказ отката поверх пользовательского изменения: $target" >&2
+    exit 1
+  fi
+  grep -q "после установки изменён управляемый путь" "$root/$target-unsafe-rollback.out"
+  grep -q "user change" "$skill"
+
+  cp "$root/$target-skill.after-install" "$skill"
+  "$installer" --target "$target" --rollback "$second_run_id" >/dev/null
+  [[ -e "$plugin" ]]
+  MANIFEST_PATH="$state/install-manifest.json" EXPECTED_RUN="$run_id" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+payload = json.loads(Path(os.environ["MANIFEST_PATH"]).read_text(encoding="utf-8"))
+assert payload["run_id"] == os.environ["EXPECTED_RUN"]
+PY
+  if "$installer" --target "$target" --rollback "$second_run_id" >/dev/null 2>&1; then
+    echo "Повторный откат той же установки должен быть запрещён: $target" >&2
+    exit 1
+  fi
+
   "$installer" --target "$target" --rollback "$run_id" >/dev/null
   [[ ! -e "$plugin" ]]
   [[ ! -e "${plugin%/plugins/yandex-direct-for-all}/mcp/yandex-wordstat" ]]
+  [[ ! -e "$state/install-manifest.json" ]]
   if [[ "$target" == codex ]]; then
     [[ ! -e "$HOME/.agents/plugins/marketplace.json" ]]
   fi

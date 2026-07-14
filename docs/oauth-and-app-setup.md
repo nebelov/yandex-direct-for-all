@@ -5,6 +5,7 @@
 ## Директ
 
 ```bash
+# Только для представителя агентства; прямой рекламодатель пропускает эту строку.
 export YANDEX_DIRECT_CLIENT_LOGIN='ваш-логин-клиента'
 ./plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service direct
 ```

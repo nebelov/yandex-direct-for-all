@@ -80,11 +80,12 @@ def collect_one(access: DirectAccess, campaign_id: int, date_from: str, date_to:
     host = "api-sandbox.direct.yandex.com" if access.environment == "sandbox" else "api.direct.yandex.com"
     headers = {
         "Authorization": f"Bearer {access.token}",
-        "Client-Login": access.client_login,
         "Accept-Language": "ru",
         "Content-Type": "application/json; charset=utf-8",
         "processingMode": "auto",
     }
+    if access.client_login:
+        headers["Client-Login"] = access.client_login
     while True:
         request = urllib.request.Request(f"https://{host}/json/v5/reports", data=body, headers=headers, method="POST")
         try:

@@ -15,25 +15,35 @@
 
 ## Ручной режим
 
-Установите `YANDEX_SEARCH_ROUTE=manual` и задайте путь закрытого журнала в
-`YANDEX_SEARCH_USAGE_LEDGER`. Каждый вызов должен содержать:
+Установите `YANDEX_SEARCH_ROUTE=manual`, задайте путь закрытого разрешения в
+`YANDEX_SEARCH_APPROVAL_FILE` и путь закрытого журнала в
+`YANDEX_SEARCH_USAGE_LEDGER`. Сам вызов содержит только запрос:
 
 ```json
 {
   "query": "ПРОВЕРЕННЫЙ ЗАПРОС",
-  "search_region": "ru",
-  "paid_search_approval": {
-    "approved": true,
-    "route": "web",
-    "max_calls": 1,
-    "approval_ref": "ССЫЛКА_НА_ОДОБРЕНИЕ"
-  }
+  "search_region": "ru"
 }
 ```
 
-Для инструмента `ai_search_with_yazeka` маршрут должен быть `generative`.
-Ссылка `approval_ref` резервируется в журнале до сети и не может быть
-использована повторно.
+Закрытый файл с правами `0600` создаёт владелец отдельно от вызова:
+
+```json
+{
+  "approved": true,
+  "approval_ref": "ССЫЛКА_НА_ОДОБРЕНИЕ",
+  "routes": ["web"],
+  "max_calls": 1,
+  "expires_at": "2030-01-01T00:00:00+00:00",
+  "folder_sha256": "SHA256_НОМЕРА_ПАПКИ",
+  "request_sha256": "SHA256_МАРШРУТА_ЗАПРОСА_И_ОБЛАСТИ"
+}
+```
+
+`request_sha256` вычисляется функцией `request_sha256` из `detail.py`. Для
+`ai_search_with_yazeka` маршрут равен `generative`. Ссылка `approval_ref`
+резервируется в журнале до сети и не может быть использована повторно. Поля
+подтверждения в теле вызова запрещены.
 
 ## Заранее разрешённый режим
 

@@ -22,10 +22,12 @@
 ```json
 {
   "environment": "production",
-  "client_login": "ваш-логин-клиента",
   "token_file": ".codex/auth/direct_oauth_token.json"
 }
 ```
+
+Прямой рекламодатель использует этот вариант без `client_login`. Представитель
+агентства добавляет `"client_login": "логин-клиента-рекламодателя"`.
 
 Сохраните его вне Git и выполните `chmod 600`. Вместо пути можно задать `YANDEX_DIRECT_ACCESS_FILE`.
 

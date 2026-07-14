@@ -158,8 +158,6 @@ def audience_read(token: str, segment_name: str, max_items: int) -> dict[str, An
 def run_check(args: argparse.Namespace) -> tuple[dict[str, Any], Path]:
     auth_root, _ = resolve_auth_root(args.auth_root)
     token, expected_client_id, token_source = resolve_token(args, auth_root)
-    if args.service == "direct" and not args.client_login:
-        raise ValueError("Для проверки Директа обязателен логин клиентской области.")
     actual_client_id = yandex_id_client_id(token)
     app_matches = actual_client_id == expected_client_id
     if args.service == "direct":
@@ -175,6 +173,8 @@ def run_check(args: argparse.Namespace) -> tuple[dict[str, Any], Path]:
         "oauth_client_id_matches": app_matches,
         "read": read,
     }
+    if args.service == "direct":
+        result["direct_scope"] = "agency_client" if args.client_login else "token_owner"
     output = Path(args.output).expanduser().resolve() if args.output else preflight_path(auth_root, args.service)
     write_json(output, result)
     return result, output

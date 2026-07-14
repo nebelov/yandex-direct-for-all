@@ -44,7 +44,7 @@ REQUIRED_PACK_FIELDS = {
 }
 REQUIRED_OPERATION_FIELDS = {
     "id", "service", "method", "version", "params", "depends_on", "readback",
-    "expected_after", "reversible", "estimated_api_units",
+    "expected_after", "reversible", "estimated_api_units", "max_api_units",
 }
 Writer = Callable[[dict[str, Any], str, str, str], tuple[dict[str, Any], int]]
 Reader = Callable[[dict[str, Any], str, str, str], dict[str, Any]]
@@ -132,7 +132,7 @@ def validate_structure(pack: dict[str, Any]) -> None:
     if "." not in operation_type or tuple(operation_type.split(".", 1)) not in ALLOWED_PAIRS:
         raise GateError("Неподдерживаемый тип операции")
     identifiers: set[str] = set()
-    estimated_total = 0
+    reserved_total = 0
     for operation in pack["operations"]:
         if not isinstance(operation, dict):
             raise GateError("Операция должна быть объектом")
@@ -155,7 +155,11 @@ def validate_structure(pack: dict[str, Any]) -> None:
             raise GateError("reversible должен быть логическим значением")
         if not isinstance(operation["estimated_api_units"], int) or isinstance(operation["estimated_api_units"], bool) or operation["estimated_api_units"] <= 0:
             raise GateError("estimated_api_units должен быть положительным целым числом")
-        estimated_total += operation["estimated_api_units"]
+        if not isinstance(operation["max_api_units"], int) or isinstance(operation["max_api_units"], bool) or operation["max_api_units"] <= 0:
+            raise GateError("max_api_units операции должен быть положительным целым числом")
+        if operation["estimated_api_units"] > operation["max_api_units"]:
+            raise GateError("Оценка единиц API не может превышать предел операции")
+        reserved_total += operation["max_api_units"]
         if operation["reversible"] != (pair in REVERSIBLE_PAIRS):
             raise GateError("Признак обратимости не соответствует типу операции")
         if not operation["reversible"]:
@@ -168,8 +172,8 @@ def validate_structure(pack: dict[str, Any]) -> None:
             raise GateError("expected_after обязателен")
         _validate_readback(operation["readback"])
         identifiers.add(identifier)
-    if estimated_total > pack["max_api_units"]:
-        raise GateError("Заявленный бюджет API недостаточен для пакета")
+    if reserved_total > pack["max_api_units"]:
+        raise GateError("Заявленный бюджет API недостаточен для суммы пределов операций")
 
 
 def validate_time_window(pack: dict[str, Any], now: datetime) -> None:
@@ -382,15 +386,22 @@ def execute(prepared: Prepared, *, writer: Writer = default_writer, reader: Read
                 record["status"] = "blocked_by_dependency"
                 statuses[operation["id"]] = record["status"]
                 break
-            if used_units >= pack["max_api_units"]:
+            if used_units + operation["max_api_units"] > pack["max_api_units"]:
                 record["status"] = "budget_exhausted_before_write"
                 statuses[operation["id"]] = record["status"]
                 break
             request_evidence = {"service": operation["service"], "method": operation["method"], "version": operation["version"], "params": operation["params"]}
             _atomic_json(evidence / f"request-{index:03d}.json", request_evidence)
             payload, units = writer(operation, prepared.token, pack["client_login"], pack["environment"])
-            used_units += max(0, int(units))
+            actual_units = max(0, int(units))
+            used_units += actual_units
             _atomic_json(evidence / f"response-{index:03d}.json", payload)
+            record["api_units"] = actual_units
+            record["approved_max_api_units"] = operation["max_api_units"]
+            if actual_units > operation["max_api_units"] or used_units > pack["max_api_units"]:
+                record["status"] = "api_units_bound_exceeded"
+                statuses[operation["id"]] = record["status"]
+                break
             if _is_partial(payload):
                 record["status"] = "partial"
                 statuses[operation["id"]] = record["status"]
@@ -411,7 +422,6 @@ def execute(prepared: Prepared, *, writer: Writer = default_writer, reader: Read
                 statuses[operation["id"]] = record["status"]
                 break
             record["status"] = "ready"
-            record["api_units"] = max(0, int(units))
             statuses[operation["id"]] = "ready"
 
         complete = len(statuses) == len(pack["operations"]) and all(value == "ready" for value in statuses.values())

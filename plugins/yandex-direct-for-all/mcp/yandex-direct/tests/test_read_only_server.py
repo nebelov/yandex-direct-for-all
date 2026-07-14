@@ -168,11 +168,18 @@ class ReadOnlyServerTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         await server.execute_read("campaigns", "get", {}, request=request)
 
-                no_scope = self.runtime(root)
-                no_scope.pop("YANDEX_DIRECT_CLIENT_LOGIN")
-                with mock.patch.dict(os.environ, no_scope, clear=True):
-                    with self.assertRaises(ValueError):
-                        await server.execute_read("campaigns", "get", {}, request=request)
+                token_owner = self.runtime(root)
+                token_owner.pop("YANDEX_DIRECT_CLIENT_LOGIN")
+                seen_headers = {}
+
+                async def owner_request(url, headers, body):
+                    seen_headers.update(headers)
+                    return FakeResponse(200, payload={"result": {"Campaigns": []}})
+
+                with mock.patch.dict(os.environ, token_owner, clear=True):
+                    result = await server.execute_read("campaigns", "get", {}, request=owner_request)
+                self.assertEqual(result["status"], "ready")
+                self.assertNotIn("Client-Login", seen_headers)
 
         asyncio.run(run())
 

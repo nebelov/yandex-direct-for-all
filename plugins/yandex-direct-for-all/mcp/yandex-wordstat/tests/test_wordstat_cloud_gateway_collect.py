@@ -92,11 +92,30 @@ class CollectorTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(pacer.billed, [False])
 
+    def test_regions_tree_still_consumes_total_hourly_request_quota(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            state_path = Path(tmp) / "limits.json"
+            pacer = cloud.QuotaPacer(state_path)
+            state_path.write_text(
+                json.dumps({"requestTimes": [900.0] * 100, "billedTimes": [], "nextAllowedAt": 0.0}),
+                encoding="utf-8",
+            )
+            os.chmod(state_path, 0o600)
+            with mock.patch.object(cloud.time, "time", side_effect=[1000.0, 4501.0]), mock.patch.object(
+                cloud.time, "sleep"
+            ) as sleeper:
+                pacer.before_request(billed=False)
+            sleeper.assert_called_once_with(3500.0)
+            saved = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(len(saved["requestTimes"]), 1)
+            self.assertEqual(saved["billedTimes"], [])
+
     def test_full_run_and_resume_without_duplicates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             masks = root / "masks.tsv"
-            masks.write_text("mask\tintent\nпример услуги\tcommercial\n", encoding="utf-8")
+            source_mask = '  "пример  услуги"  '
+            masks.write_text(f"mask\tintent\n{source_mask}\tcommercial\n", encoding="utf-8")
             config = root / "credentials.json"
             config.write_text(
                 json.dumps(
@@ -117,6 +136,7 @@ class CollectorTests(unittest.TestCase):
                 if url.endswith("/getRegionsTree"):
                     return httpx.Response(200, json={"regions": []})
                 if url.endswith("/topRequests"):
+                    self.assertEqual(kwargs["json"]["phrase"], source_mask)
                     return httpx.Response(
                         200,
                         json={"totalCount": "1", "results": [{"phrase": "пример услуги", "count": "1"}], "associations": []},
@@ -147,6 +167,9 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(requests, ["getRegionsTree", "topRequests", "regions", "dynamics"])
             manifest = json.loads((output / "raw_bundle/_manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(len(manifest), 4)
+            mask_entries = [item for item in manifest if item["artifact"] != "regions_tree"]
+            self.assertTrue(all(item["source_mask"] == source_mask for item in mask_entries))
+            self.assertTrue(all(item["normalized_label"] == "пример_услуги" for item in mask_entries))
 
             with mock.patch.object(sys, "argv", argv), mock.patch.object(
                 cloud.httpx, "post", side_effect=AssertionError("resume must not request again")

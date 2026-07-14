@@ -75,7 +75,7 @@
     "operation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "service", "method", "version", "params", "depends_on", "readback", "expected_after", "reversible", "estimated_api_units"],
+      "required": ["id", "service", "method", "version", "params", "depends_on", "readback", "expected_after", "reversible", "estimated_api_units", "max_api_units"],
       "properties": {
         "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$"},
         "service": {"type": "string"},
@@ -87,6 +87,7 @@
         "expected_after": {},
         "reversible": {"type": "boolean"},
         "estimated_api_units": {"type": "integer", "minimum": 1},
+        "max_api_units": {"type": "integer", "minimum": 1},
         "reversal_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
         "irreversible_reason": {"type": "string", "minLength": 1}
       }

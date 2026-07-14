@@ -74,7 +74,7 @@ def normalize_mask(mask: str) -> str:
 
 
 def parse_masks(path: Path) -> list[tuple[str, str]]:
-    lines = [line.rstrip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     if not lines:
         raise RuntimeError("masks file is empty")
     if lines[0].strip().lower() == "mask":
@@ -86,12 +86,11 @@ def parse_masks(path: Path) -> list[tuple[str, str]]:
             idx_intent = header.index("intent") if "intent" in header else None
             rows: list[tuple[str, str]] = []
             for line in lines[1:]:
-                cols = [part.strip() for part in line.split("\t")]
+                cols = line.split("\t")
                 mask = cols[idx_mask] if idx_mask < len(cols) else ""
                 intent = cols[idx_intent] if idx_intent is not None and idx_intent < len(cols) else ""
-                normalized = normalize_mask(mask)
-                if normalized:
-                    rows.append((normalized, intent))
+                if normalize_mask(mask):
+                    rows.append((mask, intent.strip()))
             if rows:
                 return rows
     rows = []
@@ -99,9 +98,8 @@ def parse_masks(path: Path) -> list[tuple[str, str]]:
         if line.startswith("#"):
             continue
         raw_mask, _, intent = line.partition("\t")
-        normalized = normalize_mask(raw_mask)
-        if normalized:
-            rows.append((normalized, intent.strip()))
+        if normalize_mask(raw_mask):
+            rows.append((raw_mask, intent.strip()))
     if not rows:
         raise RuntimeError("no valid masks found")
     return rows
@@ -265,8 +263,8 @@ class QuotaPacer:
                 recent_second = [value for value in request_times if value > now - 1]
                 if len(recent_second) >= 10:
                     wait_seconds = max(wait_seconds, recent_second[0] + 1 - now)
-                if billed and len(billed_times) >= 100:
-                    wait_seconds = max(wait_seconds, billed_times[0] + 3600 - now)
+                if len(request_times) >= 100:
+                    wait_seconds = max(wait_seconds, request_times[0] + 3600 - now)
                 if wait_seconds <= 0:
                     request_times.append(now)
                     if billed:
@@ -378,11 +376,11 @@ def artifact_kind(entry: dict[str, Any]) -> str:
 
 
 def upsert_manifest(manifest: list[dict[str, Any]], entry: dict[str, Any]) -> None:
-    key = (str(entry.get("mask") or ""), artifact_kind(entry))
+    key = (str(entry.get("source_mask", entry.get("mask")) or ""), artifact_kind(entry))
     manifest[:] = [
         item
         for item in manifest
-        if (str(item.get("mask") or ""), artifact_kind(item)) != key
+        if (str(item.get("source_mask", item.get("mask")) or ""), artifact_kind(item)) != key
     ]
     manifest.append(entry)
 
@@ -399,12 +397,12 @@ def load_manifest(path: Path) -> list[dict[str, Any]]:
 
 def completed_artifact(
     manifest: list[dict[str, Any]],
-    mask: str,
+    source_mask: str,
     artifact: str,
     validator: Callable[[Any], None],
 ) -> dict[str, Any] | None:
     for entry in manifest:
-        if str(entry.get("mask") or "") != mask or artifact_kind(entry) != artifact:
+        if str(entry.get("source_mask", entry.get("mask")) or "") != source_mask or artifact_kind(entry) != artifact:
             continue
         if entry.get("status") != "success":
             continue
@@ -430,13 +428,14 @@ def collect_artifact(
     manifest: list[dict[str, Any]],
     manifest_path: Path,
     raw_bundle_dir: Path,
-    mask: str,
+    source_mask: str,
+    normalized_label: str,
     intent: str,
     artifact: str,
     filename: str,
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    completed = completed_artifact(manifest, mask, artifact, validator)
+    completed = completed_artifact(manifest, source_mask, artifact, validator)
     if completed:
         return completed
 
@@ -445,7 +444,9 @@ def collect_artifact(
     if result["ok"]:
         write_json_atomic(raw_path, result["payload"])
         entry = {
-            "mask": mask,
+            "mask": source_mask,
+            "source_mask": source_mask,
+            "normalized_label": normalized_label,
             "intent": intent,
             "artifact": artifact,
             "type": artifact,
@@ -457,7 +458,9 @@ def collect_artifact(
         error_path = raw_bundle_dir / f"error_{filename.removesuffix('.json')}.txt"
         error_path.write_text(str(result["summary"]), encoding="utf-8")
         entry = {
-            "mask": mask,
+            "mask": source_mask,
+            "source_mask": source_mask,
+            "normalized_label": normalized_label,
             "intent": intent,
             "artifact": artifact,
             "type": f"{artifact}_error",
@@ -522,7 +525,8 @@ def main() -> int:
         manifest=manifest,
         manifest_path=manifest_path,
         raw_bundle_dir=raw_bundle_dir,
-        mask="",
+        source_mask="",
+        normalized_label="regions_tree",
         intent="",
         artifact="regions_tree",
         filename="regions_tree.json",
@@ -537,16 +541,16 @@ def main() -> int:
         "dynamics": {"ok": 0, "fail": 0},
     }
     truncated_masks = 0
-    for mask, intent in masks_rows:
-        digest = hashlib.sha256(mask.encode("utf-8")).hexdigest()[:10]
-        readable = re.sub(r"[^a-zA-Z0-9а-яА-ЯёЁ_-]+", "_", mask).lower()[:55].strip("_") or "mask"
+    for source_mask, intent in masks_rows:
+        digest = hashlib.sha256(source_mask.encode("utf-8")).hexdigest()[:10]
+        readable = re.sub(r"[^a-zA-Z0-9а-яА-ЯёЁ_-]+", "_", source_mask).lower()[:55].strip("_") or "mask"
         stub = f"{readable}_{digest}"
 
         top = collect_artifact(
             api_key=api_key,
             endpoint="/v2/wordstat/topRequests",
             body={
-                "phrase": mask,
+                "phrase": source_mask,
                 "numPhrases": args.num_phrases,
                 "regions": regions,
                 "devices": devices,
@@ -557,7 +561,8 @@ def main() -> int:
             manifest=manifest,
             manifest_path=manifest_path,
             raw_bundle_dir=raw_bundle_dir,
-            mask=mask,
+            source_mask=source_mask,
+            normalized_label=readable,
             intent=intent,
             artifact="top_requests",
             filename=f"top_requests_{stub}.json",
@@ -568,7 +573,7 @@ def main() -> int:
             if total_count > args.num_phrases:
                 truncated_masks += 1
             for entry in manifest:
-                if entry.get("mask") == mask and artifact_kind(entry) == "top_requests":
+                if entry.get("source_mask", entry.get("mask")) == source_mask and artifact_kind(entry) == "top_requests":
                     entry["totalCount"] = total_count
                     entry["truncated"] = total_count > args.num_phrases
             write_json_atomic(manifest_path, manifest)
@@ -577,7 +582,7 @@ def main() -> int:
             api_key=api_key,
             endpoint="/v2/wordstat/regions",
             body={
-                "phrase": mask,
+                "phrase": source_mask,
                 "region": "REGION_ALL",
                 "devices": devices,
                 "folderId": folder_id,
@@ -587,7 +592,8 @@ def main() -> int:
             manifest=manifest,
             manifest_path=manifest_path,
             raw_bundle_dir=raw_bundle_dir,
-            mask=mask,
+            source_mask=source_mask,
+            normalized_label=readable,
             intent=intent,
             artifact="regions",
             filename=f"regions_{stub}.json",
@@ -599,7 +605,7 @@ def main() -> int:
                 api_key=api_key,
                 endpoint="/v2/wordstat/dynamics",
                 body={
-                    "phrase": mask,
+                    "phrase": source_mask,
                     "period": "PERIOD_MONTHLY",
                     "fromDate": date_from,
                     "toDate": date_to,
@@ -612,7 +618,8 @@ def main() -> int:
                 manifest=manifest,
                 manifest_path=manifest_path,
                 raw_bundle_dir=raw_bundle_dir,
-                mask=mask,
+                source_mask=source_mask,
+                normalized_label=readable,
                 intent=intent,
                 artifact="dynamics",
                 filename=f"dynamics_{stub}.json",

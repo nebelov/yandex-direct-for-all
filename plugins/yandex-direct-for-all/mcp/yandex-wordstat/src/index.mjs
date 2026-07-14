@@ -16,8 +16,8 @@ import {
   toYandexDevices,
   toYandexPeriod,
   toYandexRegionGranularity,
+  WordstatUsageLedger,
 } from './convert.mjs';
-import { WordstatUsageLedger } from './usage-ledger.mjs';
 
 await runServer();
 

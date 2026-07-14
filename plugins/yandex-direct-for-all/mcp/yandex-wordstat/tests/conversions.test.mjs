@@ -1,4 +1,7 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   calculateTrend,
   flattenRegionsTree,
@@ -12,7 +15,19 @@ import {
   toYandexDevices,
   toYandexPeriod,
   toYandexRegionGranularity,
+  WordstatUsageLedger,
 } from '../src/convert.mjs';
+
+const quotaRoots = [];
+afterEach(async () => {
+  await Promise.all(quotaRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+});
+
+async function quotaFixture() {
+  const root = await mkdtemp(join(tmpdir(), 'ydfall-wordstat-'));
+  quotaRoots.push(root);
+  return join(root, 'limits.json');
+}
 
 describe('date conversion', () => {
   test('toRFC3339Date converts YYYY-MM-DD to UTC midnight', () => {
@@ -187,5 +202,54 @@ describe('flattenRegionsTree (v2 {id,label,children} shape)', () => {
     expect(map.get(2)).toEqual({ label: 'Санкт-Петербург', parentId: 225 });
     // keys are numbers, not strings
     expect([...map.keys()].every((k) => typeof k === 'number')).toBe(true);
+  });
+});
+
+describe('persistent Wordstat usage ledger', () => {
+  test('records cost separately while counting every request per hour', async () => {
+    const statePath = await quotaFixture();
+    const ledger = new WordstatUsageLedger({ statePath, now: () => 10_000 });
+    await ledger.reserve({ endpoint: '/v2/wordstat/topRequests', billed: true });
+    await ledger.reserve({ endpoint: '/v2/wordstat/getRegionsTree', billed: false });
+    expect(await ledger.snapshot()).toEqual({
+      requestsLastSecond: 2,
+      requestsLastHour: 2,
+      billedLastHour: 1,
+      costUnitsLastHour: 1,
+    });
+    const saved = JSON.parse(await readFile(statePath, 'utf8'));
+    expect(saved.requests[1].costUnits).toBe(0);
+    expect((await stat(statePath)).mode & 0o777).toBe(0o600);
+  });
+
+  test('shares the per-second limit across ledger instances', async () => {
+    const statePath = await quotaFixture();
+    let now = 20_000;
+    const waits = [];
+    const sleep = async (ms) => { waits.push(ms); now += ms; };
+    for (let index = 0; index < 11; index += 1) {
+      const ledger = new WordstatUsageLedger({ statePath, now: () => now, sleep });
+      await ledger.reserve({ endpoint: '/v2/wordstat/regions', billed: true });
+    }
+    expect(waits.length).toBe(1);
+    expect(waits[0]).toBeGreaterThanOrEqual(1000);
+  });
+
+  test('counts free regions-tree calls toward the total hourly limit', async () => {
+    const statePath = await quotaFixture();
+    let now = 100_000;
+    const waits = [];
+    const sleep = async (ms) => { waits.push(ms); now += ms; };
+    const ledger = new WordstatUsageLedger({ statePath, now: () => now, sleep });
+    for (let index = 0; index < 100; index += 1) {
+      await ledger.reserve({ endpoint: '/v2/wordstat/getRegionsTree', billed: false });
+      now += 1001;
+    }
+    await ledger.reserve({ endpoint: '/v2/wordstat/getRegionsTree', billed: false });
+    expect(waits.length).toBe(1);
+    expect(waits[0]).toBeGreaterThan(0);
+    const snapshot = await ledger.snapshot();
+    expect(snapshot.requestsLastHour).toBe(100);
+    expect(snapshot.billedLastHour).toBe(0);
   });
 });
