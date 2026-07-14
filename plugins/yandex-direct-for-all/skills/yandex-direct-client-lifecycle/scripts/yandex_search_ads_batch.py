@@ -7,10 +7,9 @@ import argparse
 import base64
 import csv
 import json
-import os
 import re
+import stat
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from html import unescape
@@ -107,36 +106,20 @@ def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def build_auth_and_folder() -> tuple[dict[str, str], str, str]:
-    api_key = os.environ.get("YANDEX_SEARCH_API_KEY", "").strip()
-    iam_token = os.environ.get("YANDEX_SEARCH_IAM_TOKEN", "").strip()
-    folder_id = os.environ.get("YANDEX_SEARCH_FOLDER_ID", "").strip()
-    credential_path = ""
-    if (api_key or iam_token) and folder_id:
-        header = {"Authorization": f"Api-Key {api_key}"} if api_key else {"Authorization": f"Bearer {iam_token}"}
-        return header, folder_id, "env"
-
-    candidates = [
-        os.environ.get("YANDEX_SEARCH_CREDENTIALS_FILE", "").strip(),
-        str(Path.cwd() / ".yandex_cloud_search_api.json"),
-        str(Path.cwd() / ".codex" / "yandex-cloud-search-api.json"),
-    ]
-    for raw in candidates:
-        if not raw:
-            continue
-        path = Path(raw).expanduser().resolve()
-        if not path.exists():
-            continue
-        payload = load_json(path)
-        nested = payload.get("search_api") if isinstance(payload.get("search_api"), dict) else {}
-        api_key = str(payload.get("api_key") or nested.get("api_key") or "").strip()
-        folder_id = str(payload.get("folder_id") or nested.get("folder_id") or "").strip()
-        iam_token = str(payload.get("iam_token") or nested.get("iam_token") or "").strip()
-        if folder_id and (api_key or iam_token):
-            credential_path = str(path)
-            header = {"Authorization": f"Api-Key {api_key}"} if api_key else {"Authorization": f"Bearer {iam_token}"}
-            return header, folder_id, credential_path
-    raise RuntimeError("Не найдены Yandex Search API credentials")
+def build_auth_and_folder(credentials_file: Path) -> tuple[dict[str, str], str]:
+    if not credentials_file.is_file():
+        raise RuntimeError("Явно указанный файл доступа не найден")
+    if stat.S_IMODE(credentials_file.stat().st_mode) & 0o077:
+        raise RuntimeError("Файл доступа должен иметь права 0600")
+    payload = load_json(credentials_file)
+    nested = payload.get("search_api") if isinstance(payload.get("search_api"), dict) else payload
+    api_key = str(nested.get("api_key") or "").strip()
+    iam_token = str(nested.get("iam_token") or "").strip()
+    folder_id = str(nested.get("folder_id") or "").strip()
+    if not folder_id or bool(api_key) == bool(iam_token):
+        raise RuntimeError("Файл доступа должен содержать folder_id и ровно один способ авторизации")
+    header = {"Authorization": f"Api-Key {api_key}"} if api_key else {"Authorization": f"Bearer {iam_token}"}
+    return header, folder_id
 
 
 @dataclass
@@ -177,17 +160,17 @@ class Job:
     def request_body(self, folder_id: str) -> dict[str, Any]:
         return {
             "query": {
-                "searchType": "SEARCH_TYPE_RU",
+                "searchType": "ru",
                 "queryText": self.search_query,
-                "page": self.page,
-                "fixTypoMode": "FIX_TYPO_MODE_OFF",
+                "page": str(self.page),
+                "fixTypoMode": "off",
             },
             "folderId": folder_id,
-            "responseFormat": "FORMAT_HTML",
+            "responseFormat": "HTML",
             "region": self.region_id,
-            "l10n": "LOCALIZATION_RU",
+            "l10N": "ru",
             "groupSpec": {
-                "groupMode": "GROUP_MODE_FLAT",
+                "groupMode": "flat",
                 "groupsOnPage": "10",
                 "docsInGroup": "1",
             },
@@ -414,8 +397,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--jobs-file", required=True)
     parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--credentials-file", required=True, help="Закрытый файл доступа с правами 0600")
+    parser.add_argument("--max-cost-units", type=int, required=True, help="Предельная стоимость волны в условных единицах")
+    parser.add_argument("--cost-units-per-request", type=int, default=1)
     parser.add_argument("--endpoint", default=DEFAULT_ENDPOINT)
-    parser.add_argument("--concurrency", type=int, default=8)
     parser.add_argument("--pause-seconds", type=float, default=0.0)
     args = parser.parse_args()
 
@@ -423,19 +408,19 @@ def main() -> int:
     output_dir = Path(args.output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     jobs = parse_jobs(jobs_file)
-    auth_header, folder_id, credential_path = build_auth_and_folder()
+    if args.max_cost_units <= 0 or args.cost_units_per_request <= 0:
+        parser.error("Ограничения стоимости должны быть положительными")
+    planned_cost_units = len(jobs) * args.cost_units_per_request
+    if planned_cost_units > args.max_cost_units:
+        parser.error("Волна превышает явно заданный предел стоимости; сетевых вызовов не было")
+    auth_header, folder_id = build_auth_and_folder(Path(args.credentials_file).expanduser().resolve())
 
     manifest_rows: list[dict[str, Any]] = []
     ad_rows: list[dict[str, Any]] = []
-    with ThreadPoolExecutor(max_workers=max(1, int(args.concurrency))) as executor:
-        futures = {
-            executor.submit(fetch_job, job, output_dir, args.endpoint, auth_header, folder_id, args.pause_seconds): job
-            for job in jobs
-        }
-        for future in as_completed(futures):
-            manifest_row, rows = future.result()
-            manifest_rows.append(manifest_row)
-            ad_rows.extend(rows)
+    for job in jobs:
+        manifest_row, rows = fetch_job(job, output_dir, args.endpoint, auth_header, folder_id, args.pause_seconds)
+        manifest_rows.append(manifest_row)
+        ad_rows.extend(rows)
 
     manifest_rows.sort(key=lambda row: (row["job_id"], row["search_query"], row["search_region"]))
     ad_rows.sort(key=lambda row: (row["search_query"], row["search_region"], int(row["result_rank"]), row["result_domain"], row["source_url"]))
@@ -451,10 +436,9 @@ def main() -> int:
         "ad_rows_total": len(ad_rows),
         "unique_queries": len({row["search_query"] for row in ad_rows}),
         "unique_domains": len({row["result_domain"] for row in ad_rows if row["result_domain"]}),
-        "credential_path": credential_path,
-        "folder_id": folder_id,
-        "jobs_file": str(jobs_file),
-        "output_dir": str(output_dir),
+        "planned_cost_units": planned_cost_units,
+        "max_cost_units": args.max_cost_units,
+        "credentials_source": "explicit_private_file",
     }
     (output_dir / "_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, ensure_ascii=False))
