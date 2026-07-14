@@ -59,6 +59,13 @@ require_file "$PLUGIN_DIR/scripts/start_yandex_user_auth.sh"
 require_file "$PLUGIN_DIR/scripts/exchange_yandex_user_code.sh"
 require_file "$PLUGIN_DIR/scripts/preflight_yandex_user_token.py"
 require_file "$PLUGIN_DIR/scripts/yandex_auth_common.py"
+require_file "$PLUGIN_DIR/tests/test_yandex_user_auth.py"
+require_file "$PLUGIN_DIR/mcp/yandex-direct/tests/test_read_only_server.py"
+require_file "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/check_access_paths.py"
+require_file "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/collect_direct_cabinet_snapshot.py"
+require_file "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/collect_direct_management_snapshot.py"
+require_file "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/fetch_sqr_parallel.py"
+require_file "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/metrika_oauth_verification_code.py"
 
 python3 -m json.tool "$PLUGIN_DIR/.codex-plugin/plugin.json" >/dev/null
 python3 -m json.tool "$PLUGIN_DIR/.mcp.json" >/dev/null
@@ -69,79 +76,51 @@ python3 -m py_compile \
   "$PLUGIN_DIR/scripts/preflight_yandex_user_token.py" \
   "$PLUGIN_DIR/scripts/yandex_auth_common.py" \
   "$PLUGIN_DIR/scripts/render_yandex_token_env.py" \
-  "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/oauth_get_token.py"
+  "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/oauth_get_token.py" \
+  "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/check_access_paths.py" \
+  "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/collect_direct_cabinet_snapshot.py" \
+  "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/collect_direct_management_snapshot.py" \
+  "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/fetch_sqr_parallel.py" \
+  "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/metrika_oauth_verification_code.py"
 python3 "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/oauth_get_token.py" --help >/dev/null
 python3 "$PLUGIN_DIR/scripts/render_yandex_token_env.py" --help >/dev/null
 python3 "$PLUGIN_DIR/scripts/start_yandex_user_auth.py" --help >/dev/null
 python3 "$PLUGIN_DIR/scripts/preflight_yandex_user_token.py" --help >/dev/null
 bash "$PLUGIN_DIR/scripts/start_yandex_user_auth.sh" --help >/dev/null
 bash "$PLUGIN_DIR/scripts/exchange_yandex_user_code.sh" --help >/dev/null
+python3 "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/check_access_paths.py" --help >/dev/null
+python3 "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/collect_direct_cabinet_snapshot.py" --help >/dev/null
+python3 "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/collect_direct_management_snapshot.py" --help >/dev/null
+python3 "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/fetch_sqr_parallel.py" --help >/dev/null
 
 TMP_AUTH_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_AUTH_ROOT"' EXIT
 
-python3 "$PLUGIN_DIR/scripts/start_yandex_user_auth.py" \
-    --service direct \
-    --mode auto \
-    --auth-root "$TMP_AUTH_ROOT" \
-    --print-only \
-    --no-browser >/dev/null
-
-python3 "$PLUGIN_DIR/scripts/start_yandex_user_auth.py" \
-    --service metrika \
-    --mode auto \
-    --auth-root "$TMP_AUTH_ROOT" \
-    --print-only \
-    --no-browser >/dev/null
-
-python3 "$PLUGIN_DIR/scripts/start_yandex_user_auth.py" \
-    --service audience \
-    --mode auto \
-    --auth-root "$TMP_AUTH_ROOT" \
-    --print-only \
-    --no-browser >/dev/null
+for service in direct metrika audience; do
+  python3 "$PLUGIN_DIR/scripts/start_yandex_user_auth.py" \
+      --service "$service" \
+      --auth-root "$TMP_AUTH_ROOT" \
+      --print-only \
+      --no-browser >/dev/null
+done
 
 python3 - <<PY
+import stat
 from pathlib import Path
+root = Path("$TMP_AUTH_ROOT")
+assert stat.S_IMODE(root.stat().st_mode) == 0o700
 for name in [
     "direct_oauth_pending.json",
     "metrika_oauth_pending.json",
     "audience_oauth_pending.json",
 ]:
-    path = Path("$TMP_AUTH_ROOT") / name
+    path = root / name
     assert path.is_file(), f"Missing pending file: {path}"
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
 PY
 
-python3 "$PLUGIN_DIR/scripts/start_yandex_user_auth.py" \
-    --service metrika \
-    --mode manual-code \
-    --auth-root "$TMP_AUTH_ROOT" \
-    --code test-code \
-    --print-only \
-    --no-browser >/dev/null
-
-python3 - <<PY
-from pathlib import Path
-import json
-sample = Path("$TMP_AUTH_ROOT") / "direct_oauth_token.json"
-sample.write_text(json.dumps({"access_token": "test-token"}), encoding="utf-8")
-PY
-
-  python3 "$PLUGIN_DIR/scripts/start_yandex_user_auth.py" \
-    --service direct \
-    --mode auto \
-    --auth-root "$TMP_AUTH_ROOT" \
-    --print-only \
-    --no-browser >/dev/null
-
-bash "$PLUGIN_DIR/scripts/exchange_yandex_user_code.sh" \
-    --service direct \
-    --auth-root "$TMP_AUTH_ROOT" \
-    --code test-code \
-    --print-only >/dev/null
-
-python3 "$PLUGIN_DIR/scripts/preflight_yandex_user_token.py" \
-  --help >/dev/null
+python3 "$PLUGIN_DIR/tests/test_yandex_user_auth.py" >/dev/null
+python3 "$PLUGIN_DIR/mcp/yandex-direct/tests/test_read_only_server.py" >/dev/null
 
 python3 - <<PY
 import ast

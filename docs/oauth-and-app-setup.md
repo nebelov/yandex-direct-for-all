@@ -1,103 +1,34 @@
-# OAuth, Access, and Reuse Model
+# Авторизация без создания приложения
 
-Этот документ отвечает на два вопроса:
+В поставке сохранены два общих опубликованных приложения Яндекса: одно для Директа, второе для Метрики. После установки любой пользователь может разрешить доступ своему аккаунту, не регистрируя собственное приложение и не вводя секрет приложения.
 
-1. можно ли использовать уже одобренные приложения для других пользователей
-2. как именно этот bundle делает это без ручного заполнения `.env`
+## Директ
 
-## Краткий verdict
+```bash
+export YANDEX_DIRECT_CLIENT_LOGIN='ваш-логин-клиента'
+./plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service direct
+```
 
-На `2026-03-28` для этого bundle:
+Запуск откроет страницу Яндекса, примет ответ на зарегистрированном локальном адресе и выполнит обязательное безопасное чтение. Незавершённый сеанс PKCE сохраняется и продолжается повторным запуском той же команды.
 
-- `Yandex Direct` -> да, одно approved app можно переиспользовать для многих пользователей
-- `Yandex Metrika` -> да
-- `Yandex Audience` -> да
-- `Wordstat` -> current official path отдельный, через `Yandex Cloud / Search API`
+Для последующего рабочего чтения выберите рабочую среду локально:
 
-## Что это значит practically
+```bash
+export YANDEX_DIRECT_ENVIRONMENT=production
+```
 
-Для `Direct / Metrika / Audience`:
+## Метрика
 
-- приложение принадлежит оператору один раз
-- пользователь проходит OAuth-consent своим аккаунтом
-- токен получается именно user-specific
-- один app может обслуживать много пользователей
-- токены пользователей нельзя смешивать между собой
+```bash
+./plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service metrika
+```
 
-## Как это теперь сделано в bundle
+После подтверждения Яндекс покажет одноразовый код. Вставьте его в скрытый запрос программы: код не передаётся аргументом процесса и не отображается.
 
-Auth-layer больше не построен вокруг требования “сначала руками впиши `client_id/client_secret`”.
+## Хранение
 
-Вместо этого bundle делает следующее:
+По умолчанию файлы создаются в `.codex/auth/`: каталоги имеют права `0700`, токен, незавершённый сеанс, файл переменной и итог проверки — `0600`. Не добавляйте `.codex/auth/` в Git и не пересылайте его содержимое.
 
-1. берёт public profile из `plugins/yandex-direct-for-all/config/yandex_oauth_public_profiles.json`
-2. генерирует `PKCE` verifier/challenge
-3. открывает страницу авторизации
-4. получает `code`
-5. меняет `code` на token без обязательного `client_secret` в default path
-6. сохраняет:
-   - `./.codex/auth/<service>_oauth_token.json`
-   - `./.codex/auth/<service>_oauth.env`
-   - `./.codex/auth/<service>_oauth_preflight.json`
-7. сразу запускает read-only `preflight_yandex_user_token.py`
+## Собственное приложение, только если оно действительно нужно
 
-## Почему `client_secret` больше не обязателен в default path
-
-Официальный OAuth для Yandex ID поддерживает `PKCE`:
-
-- при запросе confirmation code можно передавать `code_challenge`
-- при обмене code на token можно передавать `code_verifier`
-- если используется `code_verifier`, secret key передавать не обязательно
-
-Именно это bundle теперь использует как canonical default.
-
-## Service-specific profiles
-
-По состоянию текущего bundle:
-
-- `direct` -> profile `legacy_direct`, redirect `http://localhost:8080/callback`, default mode `local-callback`
-- `metrika` -> profile `master_yandex`, redirect `https://oauth.yandex.ru/verification_code`, default mode `manual-code`
-- `audience` -> profile `master_yandex`, redirect `https://oauth.yandex.ru/verification_code`, default mode `manual-code`
-
-Эти профили содержат только public `client_id` и redirect metadata.
-
-## Post-auth preflight обязателен
-
-Технически живой token ещё не означает, что он видит нужные активы клиента.
-
-Поэтому после авторизации bundle сразу делает read-only проверки:
-
-- `Direct` -> `campaigns.get`
-- `Metrika` -> список счётчиков, expected `counter_id`, `counter_info`, `goals`
-- `Audience` -> список сегментов, expected `segment_name`, optional `Direct Live4` cross-check
-
-Если preflight не прошёл, auth-flow нельзя считать завершённым.
-
-## Где `.env` всё ещё нужен
-
-`examples/yandex.env.example` остаётся в bundle, но только как optional layer:
-
-- кастомный OAuth app вместо built-in public profile
-- legacy/device flow с явным `client_secret`
-- runtime env для уже полученных token
-- `Wordstat / Search API` cloud auth
-
-## Почему `Wordstat` не надо смешивать с этим launcher-layer
-
-`Wordstat` в current official model идёт через `Yandex Search API / Yandex Cloud`.
-
-Это значит:
-
-- нужен cloud context
-- нужен `folder`
-- нужны cloud roles
-- auth идёт через `IAM token` или `API key`
-
-Поэтому сценарий `открыли OAuth-страницу -> пользователь залогинился -> bundle получил token -> Wordstat готов` нельзя описывать как универсальный официальный путь.
-
-## Связанные документы
-
-- `docs/operator-auth-launchers.md`
-- `docs/auth-model-matrix.md`
-- `plugins/yandex-direct-for-all/docs/operator-auth-launchers.md`
-- `plugins/yandex-direct-for-all/config/yandex_oauth_public_profiles.json`
+Обычному пользователю этот раздел не требуется. Переопределение допускается через переменные `YANDEX_DIRECT_OAUTH_CLIENT_ID` / `YANDEX_METRIKA_OAUTH_CLIENT_ID` либо через `YANDEX_OAUTH_CONFIG_FILE`. Файл настроек обязан иметь права `0600`. Секрет приложения не принимается: обмен всегда использует PKCE.

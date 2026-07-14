@@ -12,8 +12,10 @@
 
 Выход: data/changes_report_{date}.html + data/snapshots/latest.json
 """
-import argparse, json, os, sys, time, datetime
+import argparse, hashlib, json, os, sys, time, datetime
 import urllib.request, urllib.error
+
+from check_access_paths import load_direct_access
 
 API_V5 = "https://api.direct.yandex.com/json/v5"
 API_V501 = "https://api.direct.yandex.com/json/v501"
@@ -67,24 +69,33 @@ def parse_tsv(tsv_text):
 
 def fetch_paginated(endpoint, method, params, result_key, token, login, version="v5"):
     all_items = []
+    seen_pages = set()
+    seen_offsets = set()
     offset = 0
     while True:
         p = json.loads(json.dumps(params))
         p["Page"] = {"Limit": 10000, "Offset": offset}
         r = api_call(endpoint, method, p, token, login, version)
         if not r:
-            break
+            raise RuntimeError(f"Неполный ответ {endpoint}.{method}")
         if "error" in r:
             print(f"  API error {endpoint}: {r['error']}", file=sys.stderr, flush=True)
-            break
+            raise RuntimeError(f"Ошибка чтения {endpoint}.{method}")
         if "result" not in r:
-            break
+            raise RuntimeError(f"Нет результата {endpoint}.{method}")
         items = r["result"].get(result_key, [])
+        page_hash = hashlib.sha256(json.dumps(items, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+        if items and page_hash in seen_pages:
+            raise RuntimeError(f"Повтор страницы {endpoint}.{method}")
+        seen_pages.add(page_hash)
         all_items.extend(items)
         limited = r["result"].get("LimitedBy")
         if not limited or not items:
             break
-        offset = limited
+        if int(limited) <= offset or int(limited) in seen_offsets:
+            raise RuntimeError(f"Повтор постраничного указателя {endpoint}.{method}")
+        seen_offsets.add(offset)
+        offset = int(limited)
         time.sleep(0.3)
     return all_items
 
@@ -150,7 +161,7 @@ def get_report_bulk(report_type, fields, date_from, date_to, token, login, name=
         params["Goals"] = [GOAL_ID]
         params["AttributionModels"] = ["LC"]
     body = {"params": params}
-    for _ in range(15):
+    while True:
         req = urllib.request.Request(f"{API_V5}/reports", data=json.dumps(body).encode(), headers={
             "Authorization": f"Bearer {token}", "Client-Login": login,
             "Content-Type": "application/json", "processingMode": "auto",
@@ -170,7 +181,6 @@ def get_report_bulk(report_type, fields, date_from, date_to, token, login, name=
                 return get_report_bulk(report_type, fields, date_from, date_to, token, login, name + "_ng", with_goals=False)
             print(f"  REPORT ERROR {e.code}", file=sys.stderr, flush=True)
             return None
-    return None
 
 
 def fetch_image_urls(token, login, hashes):
@@ -248,7 +258,7 @@ def build_snapshot(all_camps, all_groups, all_ads, all_keywords):
     return snap
 
 
-def save_snapshot(data_dir, snap):
+def save_snapshot(data_dir, snap, retention_days=90):
     snap["timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     snap_dir = os.path.join(data_dir, "snapshots")
     os.makedirs(snap_dir, exist_ok=True)
@@ -261,7 +271,12 @@ def save_snapshot(data_dir, snap):
     # Сохраняем новый
     with open(latest_path, "w", encoding="utf-8") as f:
         json.dump(snap, f, ensure_ascii=False)
-    # Все бэкапы хранятся (~2.8 МБ каждый)
+    os.chmod(latest_path, 0o600)
+    cutoff = time.time() - max(1, retention_days) * 86400
+    for name in os.listdir(snap_dir):
+        candidate = os.path.join(snap_dir, name)
+        if name.startswith("snap_") and name.endswith(".json") and os.path.getmtime(candidate) < cutoff:
+            os.unlink(candidate)
     return latest_path
 
 
@@ -873,16 +888,18 @@ document.addEventListener('DOMContentLoaded', () => { filterState(); });
 # ==================== MAIN ====================
 
 def main():
+    os.umask(0o077)
     p = argparse.ArgumentParser(description="Трекер изменений Яндекс.Директ v3 — BULK + Snapshots")
     p.add_argument("--campaign-ids", help="ID кампаний через запятую (если не указать — ВСЕ)")
     p.add_argument("--days", type=int, default=90, help="Период анализа (дней)")
-    p.add_argument("--token", required=True)
-    p.add_argument("--login", required=True)
+    p.add_argument("--access-file", help="Защищённый файл доступа Директа")
     p.add_argument("--data-dir", default="./data")
     p.add_argument("--output", help="Путь к HTML")
     p.add_argument("--goal-id", default="", help="Primary goal ID for report metrics")
+    p.add_argument("--retention-days", type=int, default=90, help="Срок хранения старых снимков")
     args = p.parse_args()
-    token, login = args.token, args.login
+    access = load_direct_access(args.access_file)
+    token, login = access.token, access.client_login
     global GOAL_ID
     if args.goal_id:
         GOAL_ID = args.goal_id
@@ -1014,8 +1031,8 @@ def main():
             time.sleep(0.5)
 
     # Сохраняем новый снимок
-    snap_path = save_snapshot(args.data_dir, cur_snap)
-    print(f"  Снимок сохранён: {snap_path}", flush=True)
+    snap_path = save_snapshot(args.data_dir, cur_snap, args.retention_days)
+    print(f"  Снимок сохранён: {os.path.basename(snap_path)}", flush=True)
 
     # 7. Reports API: статистика до/после снимка
     print("\n7/7 Reports API...", flush=True)
