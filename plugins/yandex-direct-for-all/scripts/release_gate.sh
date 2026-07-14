@@ -564,6 +564,45 @@ installer = (root / "plugins/yandex-direct-for-all/scripts/install_bundle.sh").r
 for directory in sorted(path.name for path in skills.iterdir() if path.is_dir()):
     if f'"skills/{directory}"' not in installer:
         errors.append(f"Установщик не включает навык: {directory}")
+
+auth_matrices = [
+    root / "docs/auth-model-matrix.md",
+    root / "plugins/yandex-direct-for-all/docs/auth-model-matrix.md",
+]
+for path in auth_matrices:
+    text = path.read_text(encoding="utf-8")
+    for required in (
+        "YANDEX_WORDSTAT_API_KEY",
+        "YANDEX_WORDSTAT_FOLDER_ID",
+        "YANDEX_SEARCH_API_KEY",
+        "YANDEX_SEARCH_FOLDER_ID",
+        "--client-login 'логин-рекламодателя'",
+    ):
+        if required not in text:
+            errors.append(f"{path.relative_to(root)}: нет обязательной настройки {required}")
+    for obsolete in ("YANDEX_WORDSTAT_TOKEN", "ключ API или IAM-токен"):
+        if obsolete in text:
+            errors.append(f"{path.relative_to(root)}: устаревшая настройка {obsolete}")
+
+direct_docs = [
+    root / "QUICKSTART.md",
+    root / "docs/oauth-and-app-setup.md",
+    root / "docs/operator-auth-launchers.md",
+    root / "plugins/yandex-direct-for-all/docs/oauth-and-app-setup.md",
+    root / "plugins/yandex-direct-for-all/docs/operator-auth-launchers.md",
+]
+for path in direct_docs:
+    text = path.read_text(encoding="utf-8")
+    if "--service direct" not in text:
+        errors.append(f"{path.relative_to(root)}: нет команды авторизации Директа")
+    if not any(marker in text for marker in (
+        "--client-login 'логин-рекламодателя'",
+        "YANDEX_DIRECT_CLIENT_LOGIN='логин-рекламодателя'",
+    )):
+        errors.append(f"{path.relative_to(root)}: нет обязательного логина Директа")
+    for obsolete in ("без `client_login`", "не задаёт `YANDEX_DIRECT_CLIENT_LOGIN`", "пропускает эту строку"):
+        if obsolete in text:
+            errors.append(f"{path.relative_to(root)}: устаревшее правило {obsolete}")
 if errors:
     raise SystemExit("\n".join(errors))
 PY
