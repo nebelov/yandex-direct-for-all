@@ -1,20 +1,15 @@
-# Write Approval Contract
+# Договор подтверждения изменений
 
-Default mode is read-only.
+Текущий мост Директа допускает только чтение. Изменяющие запросы нельзя отправлять через универсальный вызов.
 
-A write is allowed only when all are true:
+Отдельный сценарий записи обязан до сетевого вызова:
 
-- the affected repository, account, campaign, group, ad, keyword, or setting is explicitly in scope;
-- the exact package or mutation was shown to the owner;
-- the owner gave explicit approval for that package or mutation;
-- preflight and smoke checks passed;
-- readback or post-apply validation is planned.
+1. получить свежий снимок затрагиваемых объектов;
+2. сформировать неизменяемый план с точными названиями и изменениями до/после;
+3. получить явное подтверждение именно этого плана;
+4. проверить срок подтверждения и контрольную сумму плана;
+5. применить только подтверждённые действия;
+6. сразу перечитать живое состояние и сохранить результат;
+7. подготовить проверяемый план восстановления.
 
-High-risk actions need separate approvals:
-
-- stopping, pausing, suspending, archiving, or otherwise cutting live traffic;
-- search-negative rewrites;
-- strategy, bid, placement, or moderation changes;
-- adding live mutation utilities to the public bundle.
-
-Local helper/API failures should be recorded as debt and retried or bypassed; they do not authorize skipping approval gates.
+Пока отдельные программные ворота не подключены, запись считается недоступной.

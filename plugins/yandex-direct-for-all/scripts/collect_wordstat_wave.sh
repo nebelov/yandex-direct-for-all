@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-
-exec node "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/wordstat_collect_wave.js" "$@"
+plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+exec python3 "$plugin_root/mcp/yandex-wordstat/scripts/wordstat_cloud_gateway_collect.py" "$@"

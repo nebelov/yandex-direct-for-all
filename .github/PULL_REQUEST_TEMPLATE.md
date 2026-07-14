@@ -1,10 +1,12 @@
-## Summary
+## Что изменено
 
-- what changed
-- why it changed
+- перечислите изменения;
+- объясните назначение каждого изменения.
 
-## Checks
+## Проверки
 
-- [ ] `bash ./plugins/yandex-direct-for-all/scripts/validate_bundle.sh`
-- [ ] No `.env`, `oauth*.json`, `*token*.json`, `.codex/`, `.claude/` or client-specific artifacts in diff
-- [ ] Auth docs updated if auth behavior changed
+- [ ] `bash ./plugins/yandex-direct-for-all/scripts/release_gate.sh` завершилась строкой `release gate: PASS`.
+- [ ] В изменениях нет ключей, токенов, выгрузок кабинетов, рабочих номеров, клиентских доменов и местных журналов.
+- [ ] Общие приложения авторизации Директа и Метрики сохранены и не содержат `client_secret`.
+- [ ] Документация обновлена вместе с поведением.
+- [ ] Чистая установка подготовила зависимости поиска и Wordstat, а повторная установка и откат проверены.

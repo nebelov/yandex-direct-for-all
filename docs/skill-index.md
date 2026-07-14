@@ -1,15 +1,10 @@
-# Skill Index
+# Навыки
 
-Корневой индекс bundled skills для этого репозитория.
+1. yandex-direct-unified — обязательная единая точка входа.
+2. yandex-wordstat — методы, квоты и схемы Wordstat v2.
+3. roistat-reports-api — отчёты и сверка продаж Roistat.
+4. amocrm-api-control — доступ и сверка amoCRM.
+5. yandex-performance-ops — совместимый переходник и сценарии.
+6. yandex-direct-client-lifecycle — совместимый переходник и исследовательские шаблоны.
 
-Смотреть canonical plugin copy:
-
-- `plugins/yandex-direct-for-all/skills/README.md`
-- `plugins/yandex-direct-for-all/docs/skill-index.md`
-
-Главные entry points:
-
-- `plugins/yandex-direct-for-all/skills/yandex-performance-ops/SKILL.md`
-- `plugins/yandex-direct-for-all/skills/yandex-direct-client-lifecycle/SKILL.md`
-- `plugins/yandex-direct-for-all/skills/roistat-reports-api/SKILL.md`
-- `plugins/yandex-direct-for-all/skills/amocrm-api-control/SKILL.md`
+Все пути находятся внутри plugins/yandex-direct-for-all/skills.

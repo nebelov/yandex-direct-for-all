@@ -1,70 +1,47 @@
-# AI Onboarding
+# Вводный порядок для агента
 
-Этот файл нужен новому ИИ, который впервые открыл репозиторий и ничего про него не знает.
+Единственная основная точка входа —
+`plugins/yandex-direct-for-all/skills/yandex-direct-unified/SKILL.md`.
+Навыки `yandex-performance-ops` и `yandex-direct-client-lifecycle` сохранены
+только как совместимые переходники.
 
-## 1. Сначала выбрать install path
+## Первый запуск
 
-Главный вопрос первого запуска не про OAuth, а про то, как именно `Codex` должен увидеть plugin.
+1. Выполнить `bash plugins/yandex-direct-for-all/scripts/release_gate.sh`.
+2. Посмотреть план установки командой
+   `bash plugins/yandex-direct-for-all/scripts/install_bundle.sh --target both`.
+3. Применить тот же план с `--apply`. Установщик проверит `uv`, Node.js и npm,
+   подготовит закреплённые зависимости и выдаст точную команду отката.
+4. Открыть единый навык и выбрать службу по задаче.
 
-Читать сначала:
-- `docs/install-paths.md`
-- `QUICKSTART.md`
-- `README.md`
+## Не смешивать способы доступа
 
-Коротко:
-- repo-local `Codex` path = основной и рекомендуемый
-- personal `~/.codex` install = optional fallback
-- `Claude` home-compat = отдельный optional path
+- Директ и Метрика используют сохранённые общие приложения OAuth и согласие
+  конкретного пользователя. Создавать своё приложение не требуется.
+- Wordstat v2 использует ключ и каталог Yandex Cloud.
+- Платный Search API использует отдельный ключ и по умолчанию выключен.
+- Roistat, amoCRM и YouGile используют отдельные локальные доступы.
 
-## 2. Не перепутать auth-модели
+Токены, ключи, клиентские выгрузки, журналы применения и доказательства не
+входят в репозиторий.
 
-- `Direct / Metrika / Audience` = reusable OAuth app + per-user consent
-- `Wordstat / Search API` = отдельный `Yandex Cloud` auth path
+## Безопасный порядок работы
 
-Нельзя запускать `Wordstat` так, будто он авторизуется через тот же launcher, что `Direct`.
+1. Прочитать единый навык и узкий справочник выбранной службы.
+2. Проверить доступ чтением без изменения внешней системы.
+3. Собрать полный сырой слой с признаками полноты и контрольными суммами.
+4. Отделить механическую подготовку от смыслового решения.
+5. Для записи сформировать точный пакет, снимок до изменения, ограниченное
+   разрешение и кандидата на возврат.
+6. После записи обязательно прочитать результат обратно.
 
-## 3. Минимальный безопасный порядок
+Не считать авторизацию готовой только по получению токена. Для Директа и
+Метрики запуск авторизации сам выполняет проверочное чтение выбранной службы.
 
-1. Выбрать install path из `docs/install-paths.md`.
-2. Проверить bundle:
+## Где искать состав
 
-```bash
-bash ./plugins/yandex-direct-for-all/scripts/validate_bundle.sh
-```
-
-3. Если задача про `Direct / Metrika / Audience`, использовать `start_yandex_user_auth.sh`.
-4. Если задача про `Wordstat / Search API`, сначала читать `docs/oauth-and-app-setup.md`.
-5. Перед любым collector-run свериться с `plugins/yandex-direct-for-all/docs/data-collection-scripts.md`.
-6. Не считать auth завершённым, пока не появился `*_oauth_preflight.json`.
-
-## 4. First run за 5 минут
-
-1. Проверить prerequisites: `python 3.11`, `node 20`, `rsync`, `requests`, браузер.
-2. Выбрать install path из `docs/install-paths.md`.
-3. Из `<repo-root>` прогнать `validate_bundle.sh`.
-4. Получить один read-only token:
-
-```bash
-bash ./plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service direct
-```
-
-5. Убедиться, что `*_oauth_preflight.json` создан и показывает реальный доступ.
-
-## 5. Где лежат skills и collectors
-
-Стартовые skill-entrypoints:
-- `plugins/yandex-direct-for-all/skills/yandex-performance-ops/SKILL.md`
-- `plugins/yandex-direct-for-all/skills/yandex-direct-client-lifecycle/SKILL.md`
-- `plugins/yandex-direct-for-all/skills/roistat-reports-api/SKILL.md`
-- `plugins/yandex-direct-for-all/docs/skill-index.md`
-
-Collector inventory:
-- `plugins/yandex-direct-for-all/docs/data-collection-scripts.md`
-- `plugins/yandex-direct-for-all/scripts/list_data_collectors.sh`
-
-## 6. Что нельзя делать
-
-- не начинать с OAuth до выбора install path
-- не обещать, что `Wordstat` работает через `Direct` launcher
-- не читать bundled skills из `~/.codex/skills/...`, если работаете в repo-local plugin режиме
-- не коммитить `.env`, `oauth*.json`, token-файлы и client-specific overlays
+- `QUICKSTART.md` — короткая установка и первый вход;
+- `docs/component-inventory.md` — фактический состав;
+- `docs/auth-model-matrix.md` — разделение доступов;
+- `plugins/yandex-direct-for-all/scripts/list_tool_routes.sh` — создаваемый из
+  дерева перечень сборщиков и маршрутов.

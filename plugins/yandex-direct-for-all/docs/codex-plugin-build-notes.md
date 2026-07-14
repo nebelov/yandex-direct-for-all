@@ -1,56 +1,31 @@
-# Codex Plugin Build Notes
+# Сборка дополнения
 
-Этот plugin-root собран по официальным страницам OpenAI:
+Этот каталог является самодостаточным корнем `yandex-direct-for-all`.
+Обязательные части: `.codex-plugin/plugin.json`, `.mcp.json`, `skills/`, `mcp/`,
+`scripts/`, `docs/`, `examples/` и `assets/`.
 
-- `https://developers.openai.com/codex/plugins`
-- `https://developers.openai.com/codex/plugins/build`
+Основной навык — `skills/yandex-direct-unified/SKILL.md`. Старые основные
+названия сохранены только как переходники.
 
-Проверка выполнена `2026-03-28`.
+## Проверка
 
-## Contract
+Из корня дополнения:
 
-- обязательный entry point = `.codex-plugin/plugin.json`
-- plugin folder предназначен для repo marketplace с путём `./plugins/yandex-direct-for-all`
-- все manifest paths начинаются с `./`
-- внутри `.codex-plugin/` лежит только `plugin.json`
+```bash
+bash scripts/release_gate.sh
+```
 
-## Почему bundle self-contained
+## Установка
 
-Codex ставит локальные плагины в cache-копию, а не читает их напрямую из marketplace path.
-Из-за этого runtime-важные файлы нельзя хранить снаружи plugin-root.
+```bash
+bash scripts/install_bundle.sh --target codex
+bash scripts/install_bundle.sh --target codex --apply
+```
 
-Поэтому внутри самого bundle лежат:
+Для Клода используйте `claude`, для обеих сред — `both`. До применения нужны
+`uv`, Node.js и npm. Установщик сначала полностью готовит временную копию,
+включая зависимости поиска и Wordstat, затем атомарно заменяет только
+управляемые каталоги. Конфликт пользовательского файла блокирует запись.
 
-- `README.md`
-- `docs/`
-- `examples/`
-- `scripts/`
-- `skills/`
-- `mcp/`
-
-## Почему здесь только `skills` + `mcpServers`
-
-Official docs допускают `apps`, но этот bundle не про connector/app distribution.
-
-Его задача:
-
-- перенести канонические skills;
-- перенести локальные MCP servers;
-- дать install/validate helpers;
-- дать готовый entry point для повторного использования в других аккаунтах.
-
-Поэтому поле `apps` сознательно опущено.
-
-## Marketplace
-
-Repo marketplace должен жить в:
-
-- `../../.agents/plugins/marketplace.json`
-
-В marketplace entry должны оставаться:
-
-- `policy.installation`
-- `policy.authentication`
-- `category`
-
-После изменения manifest или marketplace нужен restart Codex.
+Токены, ключи, рабочие выгрузки и состояние установки не являются частью
+поставки.

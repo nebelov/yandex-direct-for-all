@@ -1,27 +1,50 @@
 {
   "name": "yandex-wordstat-mcp",
-  "version": "1.0.0",
-  "description": "MCP server for Yandex Wordstat API integration with Claude Code",
+  "version": "2.0.1",
+  "description": "MCP server for the Yandex Wordstat v2 API (Yandex Cloud Search API) - keyword research and search trends for Russian market",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "src/index.mjs",
+  "bin": {
+    "yandex-wordstat-mcp": "src/index.mjs"
+  },
+  "files": [
+    "src/*.mjs",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "tsc && node dist/index.js",
-    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js"
+    "start": "node src/index.mjs",
+    "test": "bun test"
   },
-  "keywords": ["mcp", "yandex", "wordstat", "seo", "keywords"],
-  "author": "vitaliy-travin",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "yandex",
+    "wordstat",
+    "keywords",
+    "seo",
+    "search-trends",
+    "russian",
+    "keyword-research",
+    "claude",
+    "ai"
+  ],
+  "author": "Alternex",
   "license": "MIT",
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "zod": "^3.23.0"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/altrr2/yandex-tools-mcp.git",
+    "directory": "packages/yandex-wordstat-mcp"
   },
-  "devDependencies": {
-    "typescript": "^5.6.0",
-    "@types/node": "^22.0.0"
+  "bugs": {
+    "url": "https://github.com/altrr2/yandex-tools-mcp/issues"
   },
+  "homepage": "https://github.com/altrr2/yandex-tools-mcp/tree/main/packages/yandex-wordstat-mcp#readme",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
   }
 }

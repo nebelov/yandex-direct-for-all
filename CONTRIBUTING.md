@@ -1,49 +1,34 @@
-# Contributing
+# Участие в разработке
 
-## Before opening a PR
+## Перед запросом на изменение
 
-Run:
+Выполните единые выпускные ворота:
 
 ```bash
-bash ./plugins/yandex-direct-for-all/scripts/validate_bundle.sh
+bash ./plugins/yandex-direct-for-all/scripts/release_gate.sh
 ```
 
-## Scope rules
+Изменение не готово к публикации, пока эта команда не завершилась строкой `release gate: PASS`.
 
-- Keep the bundle self-contained inside `plugins/yandex-direct-for-all/`.
-- Do not reintroduce docs that force manual `.env` filling for the default `Direct / Metrika / Audience` auth path.
-- Keep `Wordstat / Search API` documented as a separate cloud auth model.
-- Preserve the post-auth read-only preflight flow.
+## Границы набора
 
-## Secrets and local artifacts
+- Весь переносимый модуль хранится в `plugins/yandex-direct-for-all/`.
+- Основная точка входа — `yandex-direct-unified`; старые точки входа остаются совместимыми переходниками.
+- Общие приложения OAuth Директа и Метрики сохраняются: пользователю не нужно создавать своё. Публикуются только открытые `client_id`, но не секреты и не токены.
+- Wordstat и платный Search API используют отдельную облачную модель доступа. Платный поиск по умолчанию выключен.
+- Чтение и запись не объединяются одним токеном или универсальным методом.
 
-Never commit:
+## Запрещено публиковать
 
-- `.env`
-- `oauth*.json`
-- `*token*.json`
-- `credentials*.json`
-- `.codex/`
-- `.claude/`
-- any client-specific overlay or runtime auth artifact
+- ключи, токены, пароли, коды OAuth, `client_secret` и файлы доступа;
+- выгрузки кабинетов, сырые ответы API, звонки, заявки и контакты;
+- рабочие номера проектов, счётчиков, кампаний и целей;
+- клиентские домены, имена, названия досок и служебные привязки;
+- абсолютные домашние пути, частные хосты, журналы запуска, папки `.codex/` и `.claude/`;
+- необезличенные фикстуры.
 
-## Documentation changes
+Синтетические фикстуры должны быть явно обозначены как вымышленные.
 
-If you change auth behavior, update all of:
+## Изменение авторизации
 
-- `README.md`
-- `AI_ONBOARDING.md`
-- `docs/operator-auth-launchers.md`
-- `docs/oauth-and-app-setup.md`
-- `plugins/yandex-direct-for-all/README.md`
-- `plugins/yandex-direct-for-all/docs/operator-auth-launchers.md`
-
-## Validation expectation
-
-Changes are not publish-ready until `validate_bundle.sh` passes.
-
-## Release checklist
-
-- update public metadata in `plugins/yandex-direct-for-all/.codex-plugin/plugin.json`
-- keep root docs and plugin-root docs consistent
-- verify no private paths, hostnames or handoff files leaked into public tree
+При любом изменении авторизации одновременно обновите `README.md`, `AI_ONBOARDING.md`, `docs/operator-auth-launchers.md`, `docs/oauth-and-app-setup.md` и соответствующие документы внутри модуля.

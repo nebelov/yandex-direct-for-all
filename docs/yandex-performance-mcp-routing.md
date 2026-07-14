@@ -1,10 +1,16 @@
-# Yandex Performance MCP Routing
+# Маршрутизация инструментов Яндекса
 
-Preferred route order for production agents:
+1. Открыть `yandex-direct-unified` и определить источник истины.
+2. Для воспроизводимого сбора использовать специализированный сценарий навыка.
+3. Для структурированного чтения использовать соответствующую подключаемую
+   службу или официальный API.
+4. Проверить все страницы, состояние завершения и контрольную сумму результата.
+5. Смысловые кандидаты передать на ручную проверку, не превращая сборщик в
+   механизм решения.
+6. Запись выполнять только через сценарий с точным пакетом, разрешением,
+   снимком до изменения, контрольным чтением и возвратом.
 
-1. Use specialized local scripts and collectors from the relevant skill when available.
-2. Use MCP/API routes for structured Yandex Direct, Metrika, Wordstat, Roistat, or Search API operations.
-3. Use raw API calls only when a specialized route does not exist or cannot cover the needed field.
-4. For any paginated report, exhaust every page before drawing conclusions or building apply packs.
-
-Do not convert a failed first path into a tool outage. Retry through canonical local routes and record any fallback debt separately from the core workflow.
+Директ, Метрика, Wordstat и Search API используют разные договоры доступа.
+Неудача одного маршрута не разрешает скрытый запасной платный вызов, повторную
+запись или переход к интерфейсу браузера. Причина фиксируется, затем выбирается
+другой заранее разрешённый официальный маршрут.
