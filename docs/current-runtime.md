@@ -1,12 +1,16 @@
-# Current Runtime Model
+# Текущая среда выполнения
 
-This repository is a portable plugin bundle plus a reference operating model for production agents.
+Поставка состоит из одного дополнения `plugins/yandex-direct-for-all`, его
+совместимых копий навыков и подключаемых служб. Главный процесс находится в
+`yandex-direct-unified`.
 
-The portable contract is:
+- Директ и Метрика: общие приложения OAuth, локальные пользовательские токены.
+- Wordstat v2: Node.js, закреплённый `package-lock.json`, ключ Yandex Cloud.
+- Search API: Python, закреплённый `uv.lock`, платные вызовы выключены.
+- Roistat, amoCRM и YouGile: отдельные локальные доступы и договоры чтения или
+  подтверждённой записи.
 
-- install or run from `<repo-root>/plugins/yandex-direct-for-all`;
-- keep reusable skills, scripts, templates, and MCP servers inside the plugin;
-- keep client overlays, credentials, runtime artifacts, and raw proof bundles outside the public repository;
-- use repository validators before publishing any changed bundle.
-
-Production deployments may add Telegram bridges, memory ledgers, schedulers, or project-specific runners. Those are deployment contracts, not mandatory install steps for every user of the public plugin.
+Установщик подготавливает зависимости в каждой целевой среде. Рабочие данные,
+клиентские дополнения, журналы и доказательства живут вне публичного дерева.
+Телеграм-мосты, расписания и серверные исполнители являются отдельными
+развёртываниями и не требуются обычному пользователю навыка.

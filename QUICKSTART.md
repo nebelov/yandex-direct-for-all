@@ -2,7 +2,7 @@
 
 ## 1. Проверка
 
-    bash plugins/yandex-direct-for-all/scripts/validate_bundle.sh
+    bash plugins/yandex-direct-for-all/scripts/release_gate.sh
 
 ## 2. Подключение
 
@@ -40,3 +40,5 @@
     plugins/yandex-direct-for-all/scripts/collect_wordstat_wave.sh --masks-file masks.tsv --output-dir result --config /защищённый/путь.json
 
 Wordstat и Yandex Search API используют ключ Yandex Cloud, а не пользовательскую авторизацию Директа.
+
+Платный `mcp/yandex-search` по умолчанию отклоняет все вызовы. Для его включения сначала откройте `plugins/yandex-direct-for-all/mcp/yandex-search/readme.md` и выберите ручной или заранее разрешённый режим.

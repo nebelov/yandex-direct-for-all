@@ -1,28 +1,42 @@
-# Privacy Policy
+# Обращение с данными
 
-This repository is a local-tooling bundle. It does not operate a hosted SaaS service.
+Репозиторий является локальным набором навыков и программ, а не размещённой
+службой. Он не собирает данные пользователей сам по себе.
 
-## What this repository stores
+## Что допускается в репозитории
 
-- source code
-- documentation
-- install scripts
-- reusable skills and MCP bundles
+- исходный код, документы и обезличенные шаблоны;
+- открытые идентификаторы общих приложений OAuth;
+- синтетические примеры без рабочих названий, адресов и служебных номеров;
+- лицензии и сведения о происхождении внешних компонентов.
 
-## What must not be committed
+## Что хранится только локально
 
-- OAuth tokens
-- API keys
-- `.env` files with live secrets
-- client-specific overlays
-- any runtime auth artifacts under `.codex/` or `.claude/`
+- токены OAuth, ключи API, коды подтверждения и файлы доступа;
+- выгрузки Директа, Метрики, Roistat, amoCRM и YouGile;
+- заявки, контакты, звонки, выручка и иные данные клиентов;
+- сырые ответы API, снимки до и после, журналы применения и возврата;
+- локальное состояние агентов, кэши и резервные копии.
 
-## Local runtime data
+Закрытые каталоги создаются с правами `0700`, закрытые файлы — `0600`. Доступы
+нельзя передавать аргументами командной строки, помещать в отчёты или печатать
+в обычный вывод.
 
-When you run auth launchers locally, token files may be created under `./.codex/auth/`.
-Those files are local runtime artifacts and are intentionally excluded from version control.
+## Обезличивание примеров
 
-## Third-party services
+Перед публикацией замените имена, домены, телефоны, адреса, названия кабинетов,
+кампаний, проектов, досок и целей синтетическими значениями. Удалите служебные
+номера, даже если сами по себе они не дают доступ. Сырые клиентские строки не
+должны становиться испытательными данными.
 
-This bundle may help operators authenticate against Yandex services and other third-party APIs.
-Those services have their own privacy policies and access-control rules.
+## Удаление и срок хранения
+
+Локальные доказательства хранятся только столько, сколько требуется для
+проверки и согласованного возврата. После завершения работы удалите ненужные
+копии безопасным способом, не затрагивая исходные данные пользователя.
+
+## Внешние службы
+
+При обращении к Яндексу, Roistat, amoCRM или YouGile действуют их собственные
+условия и настройки доступа. Набор использует только права конкретного
+авторизовавшегося пользователя или предоставленного им служебного доступа.

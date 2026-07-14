@@ -4,42 +4,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-cat <<EOF
-Yandex Direct For All: data collectors
+printf 'Yandex Direct For All: фактический перечень сборщиков\n\n'
 
-Wordstat:
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/wordstat_preflight.sh
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/wordstat_collect_wave.js
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/wordstat_tool.sh
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/normalize_wordstat_regions.py
-
-Direct:
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/collect_all.py
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/collect_operational_precheck.py
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/fetch_sqr.sh
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/audit_campaign_meta.py
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/audit_ad_delivery_failures.py
-
-Metrika:
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/metrika/counters.sh
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/metrika/counter_info.sh
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/metrika/goals.sh
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/metrika/conversions.sh
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/metrika/traffic_summary.sh
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/metrika/utm_report.sh
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/metrika/search_engines.sh
-
-Roistat:
-  $PLUGIN_DIR/skills/yandex-performance-ops/scripts/roistat_query.sh
-  $PLUGIN_DIR/skills/roistat-reports-api/scripts/build_roistat_report_pack.py
-  $PLUGIN_DIR/skills/roistat-reports-api/scripts/sync_truth_layer_report.py
-
-Research / SERP:
-  $PLUGIN_DIR/skills/yandex-direct-client-lifecycle/scripts/yandex_search_batch.py
-  $PLUGIN_DIR/skills/yandex-direct-client-lifecycle/scripts/yandex_search_ads_batch.py
-  $PLUGIN_DIR/skills/yandex-direct-client-lifecycle/scripts/firecrawl_scrape.py
-  $PLUGIN_DIR/skills/yandex-direct-client-lifecycle/scripts/sitemap_probe_batch.py
-
-See full inventory:
-  $PLUGIN_DIR/docs/data-collection-scripts.md
-EOF
+find "$PLUGIN_DIR/scripts" "$PLUGIN_DIR/skills" "$PLUGIN_DIR/mcp" -type f \
+  \( -name 'collect*' -o -name 'fetch*' -o -name '*report*' -o -name '*search*' -o -name '*wordstat*' -o -name '*snapshot*' -o -name 'goals.sh' -o -name 'counters.sh' -o -name 'conversions.sh' \) \
+  \( -name '*.sh' -o -name '*.py' -o -name '*.js' -o -name '*.mjs' \) \
+  ! -path '*/tests/*' ! -path '*/test/*' ! -path '*/node_modules/*' ! -path '*/__pycache__/*' \
+  -print | LC_ALL=C sort | while IFS= read -r path; do
+    printf '%s\n' "${path#"$PLUGIN_DIR/"}"
+  done

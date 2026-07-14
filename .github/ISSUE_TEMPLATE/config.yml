@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Security report
-    url: ../../SECURITY.md
-    about: Do not post secrets or credential leaks in public issues.
+  - name: Закрытое сообщение об уязвимости
+    url: https://github.com/nebelov/yandex-direct-for-all/security/policy
+    about: Не публикуйте секреты и способы обхода защиты в открытых задачах.
+  - name: Правила безопасного вклада
+    url: https://github.com/nebelov/yandex-direct-for-all/blob/main/CONTRIBUTING.md
+    about: Не публикуйте ключи, токены, выгрузки, рабочие номера и клиентские домены.

@@ -10,14 +10,19 @@
 | yandex-direct-client-lifecycle | Совместимый переходник и исследовательские шаблоны |
 | roistat-reports-api | Воспроизводимые отчёты Roistat |
 | amocrm-api-control | Авторизация и сверка amoCRM |
+| yandex-cloud-search-cost-control | Атрибуция, остановка и ограничение расходов Search API |
 
 ## Подключаемые службы
 
 | Компонент | Назначение |
 |---|---|
 | mcp/yandex-direct | Безопасное чтение Яндекс.Директа |
-| mcp/yandex-search | Поиск через Yandex Search API |
+| mcp/yandex-search | Платный поиск Yandex Cloud, выключенный по умолчанию |
 | mcp/yandex-wordstat | Wordstat v2 с общим учётом квот |
+
+Сервер поиска закреплён на `mcp 1.28.1` и `requests 2.34.2`; полный граф
+зависимостей сохранён в `uv.lock`. Wordstat устанавливается строго по
+`package-lock.json`.
 
 ## Авторизация
 

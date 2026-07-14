@@ -57,6 +57,42 @@ source_for() {
   esac
 }
 
+require_runtime_tools() {
+  local missing=0
+  for command in uv node npm; do
+    if ! command -v "$command" >/dev/null 2>&1; then
+      echo "Не найдена обязательная команда для готовой установки: $command" >&2
+      missing=1
+    fi
+  done
+  ((missing == 0))
+}
+
+prepare_mcp_runtime() {
+  local search_dir="$1" wordstat_dir="$2"
+  if [[ -d "$search_dir" ]]; then
+    (cd "$search_dir" && uv sync --frozen)
+  fi
+  if [[ -d "$wordstat_dir" ]]; then
+    (cd "$wordstat_dir" && npm ci --omit=dev --ignore-scripts --prefer-offline)
+  fi
+}
+
+prepare_runtime() {
+  local rel="$1" stage="$2"
+  case "$rel" in
+    plugins/yandex-direct-for-all)
+      prepare_mcp_runtime "$stage/mcp/yandex-search" "$stage/mcp/yandex-wordstat"
+      ;;
+    mcp/yandex-search)
+      prepare_mcp_runtime "$stage" ""
+      ;;
+    mcp/yandex-wordstat)
+      prepare_mcp_runtime "" "$stage"
+      ;;
+  esac
+}
+
 tree_hash() {
   local path="$1"
   if [[ -f "$path" ]]; then
@@ -144,44 +180,56 @@ install_target() {
   local run="$root/.ydfall-install/runs/$run_id"
   local previous_manifest="$state/manifest.tsv"
   local next_manifest="$run/manifest.after.tsv"
-  mkdir -p "$run/backups"
-  chmod 700 "$state" "$state/runs" "$run" "$run/backups"
+  mkdir -p "$run/backups" "$run/stages"
+  chmod 700 "$state" "$state/runs" "$run" "$run/backups" "$run/stages"
   [[ -f "$previous_manifest" ]] && cp "$previous_manifest" "$run/manifest.before.tsv" || : > "$run/manifest.before.absent"
   : > "$run/operations.tsv"
+  : > "$run/prepared.tsv"
   : > "$next_manifest"
-  chmod 600 "$run/operations.tsv" "$next_manifest"
+  chmod 600 "$run/operations.tsv" "$run/prepared.tsv" "$next_manifest"
 
   local index=0
   for rel in "${managed_paths[@]}"; do
-    local src dest parent stage src_hash existed
+    local src stage src_hash
     src="$(source_for "$rel")"
     [[ -e "$src" ]] || continue
-    dest="$root/$rel"
-    parent="$(dirname "$dest")"
-    mkdir -p "$parent"
     index=$((index + 1))
-    existed=0
-    if [[ -e "$dest" ]]; then
-      existed=1
-      mv "$dest" "$run/backups/$index"
-    fi
-    stage="$parent/.ydfall-stage-$run_id-$index"
-    rm -rf "$stage"
+    stage="$run/stages/$index"
     if [[ -d "$src" ]]; then
       mkdir -p "$stage"
       rsync -a --exclude node_modules --exclude __pycache__ --exclude .venv "$src/" "$stage/"
     else
       cp "$src" "$stage"
     fi
+    if ! prepare_runtime "$rel" "$stage"; then
+      rm -rf "$stage"
+      echo "Не удалось подготовить зависимости: $rel" >&2
+      exit 4
+    fi
     src_hash="$(tree_hash "$src")"
     [[ "$(tree_hash "$stage")" == "$src_hash" ]] || {
       echo "Ошибка проверки подготовленной копии: $rel" >&2
       exit 4
     }
+    printf '%s\t%s\t%s\n' "$rel" "$index" "$src_hash" >> "$run/prepared.tsv"
+  done
+
+  while IFS=$'\t' read -r rel index src_hash; do
+    local dest parent stage existed
+    [[ -n "$rel" ]] || continue
+    dest="$root/$rel"
+    parent="$(dirname "$dest")"
+    stage="$run/stages/$index"
+    mkdir -p "$parent"
+    existed=0
+    if [[ -e "$dest" ]]; then
+      existed=1
+      mv "$dest" "$run/backups/$index"
+    fi
     mv "$stage" "$dest"
     printf '%s\t%s\t%s\n' "$rel" "$existed" "$index" >> "$run/operations.tsv"
     printf '%s\t%s\n' "$rel" "$src_hash" >> "$next_manifest"
-  done
+  done < "$run/prepared.tsv"
   cp "$next_manifest" "$previous_manifest"
   chmod 600 "$previous_manifest"
 
@@ -237,6 +285,10 @@ if [[ "$mode" == rollback ]]; then
     rollback_target "${item%%:*}" "${item#*:}"
   done
   exit 0
+fi
+
+if [[ "$mode" == apply ]]; then
+  require_runtime_tools || exit 2
 fi
 
 conflict=0

@@ -4,8 +4,8 @@
 |---|---|---|---|
 | Яндекс.Директ | `scripts/start_yandex_user_auth.sh --service direct` | `.codex/auth/direct_oauth_token.json`, `0600` | Только чтение, обязательна область клиента |
 | Яндекс.Метрика | `scripts/start_yandex_user_auth.sh --service metrika` | `.codex/auth/metrika_oauth_token.json`, `0600` | Только чтение доступных счётчиков |
-| Wordstat | `YANDEX_WORDSTAT_TOKEN` | вне пакета | API v2 с общим ограничителем |
-| Поиск Яндекса | ключ API или IAM-токен | вне пакета | Только чтение |
+| Wordstat | `YANDEX_WORDSTAT_API_KEY` и `YANDEX_WORDSTAT_FOLDER_ID` | вне пакета | API v2 с общим ограничителем |
+| Поиск Яндекса | `YANDEX_SEARCH_API_KEY` и `YANDEX_SEARCH_FOLDER_ID` | вне пакета | Платный маршрут выключен по умолчанию |
 
 Директ и Метрика используют сохранённые в пакете опубликованные приложения, поэтому пользователю не нужно создавать своё. Обмен выполняется по коду с PKCE S256 и без секрета приложения.
 

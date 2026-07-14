@@ -140,13 +140,20 @@ node --check "$PLUGIN_DIR/mcp/yandex-wordstat/src/usage-ledger.mjs" >/dev/null
 python3 "$PLUGIN_DIR/mcp/yandex-wordstat/tests/test_wordstat_cloud_gateway_collect.py" >/dev/null
 
 python3 - <<PY
+import hashlib
 import json
 from pathlib import Path
 profiles = json.loads(Path("$PLUGIN_DIR/config/yandex_oauth_public_profiles.json").read_text(encoding="utf-8"))
 assert set(profiles) == {"legacy_direct", "master_yandex"}
+expected = {
+    "legacy_direct": "fb2a600855d8391966342cf03ae0c5985f08f8bec92c77242bab0a131690429f",
+    "master_yandex": "70d6638756dd9802985fb8246838e2af4f77f979fd9fd07c2c1384f874b0291f",
+}
 for profile in profiles.values():
     assert profile.get("client_id")
     assert "client_secret" not in profile
+for name, digest in expected.items():
+    assert hashlib.sha256(profiles[name]["client_id"].encode()).hexdigest() == digest
 PY
 
 echo "Bundle structure looks valid."
