@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-from check_access_paths import DirectAccess, atomic_write_json, load_direct_access, sanitize_error
+from check_access_paths import DirectAccess, atomic_write_json, fetch_direct_report, load_direct_access, sanitize_error
 
 
 def _campaign_ids(raw: str, source: str) -> list[int]:
@@ -75,40 +75,8 @@ def _atomic_bytes(path: Path, payload: bytes) -> None:
 
 
 def collect_one(access: DirectAccess, campaign_id: int, date_from: str, date_to: str, output_dir: Path) -> dict[str, Any]:
-    body = _canonical({"params": _definition(campaign_id, date_from, date_to)})
-    request_sha = hashlib.sha256(body).hexdigest()
-    host = "api-sandbox.direct.yandex.com" if access.environment == "sandbox" else "api.direct.yandex.com"
-    headers = {
-        "Authorization": f"Bearer {access.token}",
-        "Accept-Language": "ru",
-        "Content-Type": "application/json; charset=utf-8",
-        "processingMode": "auto",
-    }
-    if access.client_login:
-        headers["Client-Login"] = access.client_login
-    while True:
-        request = urllib.request.Request(f"https://{host}/json/v5/reports", data=body, headers=headers, method="POST")
-        try:
-            with urllib.request.urlopen(request) as response:
-                payload = response.read()
-                status = response.status
-                response_headers = response.headers
-        except urllib.error.HTTPError as exc:
-            payload = exc.read()
-            status = exc.code
-            response_headers = exc.headers
-        if status == 200:
-            path = output_dir / f"sqr_{campaign_id}.tsv"
-            _atomic_bytes(path, payload)
-            return {"campaign_id": campaign_id, "status": "ready", "request_sha256": request_sha, "artifact": path.name, "artifact_sha256": hashlib.sha256(payload).hexdigest(), "bytes": len(payload)}
-        if status in {201, 202}:
-            retry = int(response_headers.get("retryIn") or 5)
-            state = "queued" if status == 201 else "pending"
-            atomic_write_json(output_dir / f"sqr_{campaign_id}.state.json", {"campaign_id": campaign_id, "status": state, "request_sha256": request_sha, "retry_in": retry, "reports_in_queue": response_headers.get("reportsInQueue", "")})
-            time.sleep(max(1, retry))
-            continue
-        detail = payload.decode("utf-8", errors="replace")
-        return {"campaign_id": campaign_id, "status": "error", "request_sha256": request_sha, "error": sanitize_error(f"HTTP {status}: {detail}", (access.token,))}
+    state = fetch_direct_report(access, _definition(campaign_id, date_from, date_to), output_dir)
+    return {"campaign_id": campaign_id, **state}
 
 
 def merge_ready(output_dir: Path, rows: list[dict[str, Any]]) -> dict[str, Any]:

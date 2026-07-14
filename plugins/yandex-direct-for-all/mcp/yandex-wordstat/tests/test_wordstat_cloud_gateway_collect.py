@@ -110,6 +110,20 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(len(saved["requestTimes"]), 1)
             self.assertEqual(saved["billedTimes"], [])
 
+    def test_corrupt_quota_state_fails_closed_without_replacing_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            state_path = Path(tmp) / "limits.json"
+            original = b"{not-json\n"
+            state_path.write_bytes(original)
+            os.chmod(state_path, 0o600)
+            pacer = cloud.QuotaPacer(state_path)
+            with mock.patch.object(cloud.time, "sleep") as sleeper, self.assertRaisesRegex(
+                RuntimeError, "Состояние квоты Wordstat повреждено"
+            ):
+                pacer.before_request(billed=False)
+            sleeper.assert_not_called()
+            self.assertEqual(state_path.read_bytes(), original)
+
     def test_full_run_and_resume_without_duplicates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

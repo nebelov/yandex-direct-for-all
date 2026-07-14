@@ -18,7 +18,7 @@ from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 
-from check_access_paths import fetch_direct_pages, load_direct_access
+from check_access_paths import PageManifestStore, fetch_direct_pages, load_direct_access
 
 API_V501 = "https://api.direct.yandex.com/json/v501"
 
@@ -71,36 +71,37 @@ def main() -> None:
 
     outdir = Path(args.output_dir)
     outdir.mkdir(parents=True, exist_ok=True)
+    manifests = PageManifestStore(outdir / "collection-manifest.json")
 
     states = [s.strip() for s in args.states.split(",") if s.strip()]
-    campaign_result = fetch_direct_pages(
+    campaign_result = manifests.add("campaigns", fetch_direct_pages(
         access,
         "campaigns",
         {"SelectionCriteria": {"States": states}, "FieldNames": ["Id", "Name", "State", "Status", "StatusClarification"]},
         "Campaigns",
         version="v501",
-    )
+    ))
     if not campaign_result.manifest.complete:
         raise RuntimeError(campaign_result.manifest.error)
     campaigns = campaign_result.rows
     campaign_ids = [c["Id"] for c in campaigns]
 
     adgroups = []
-    for batch in chunks(campaign_ids, 10):
-        result = fetch_direct_pages(
+    for batch_number, batch in enumerate(chunks(campaign_ids, 10), start=1):
+        result = manifests.add(f"adgroups-{batch_number}", fetch_direct_pages(
             access,
             "adgroups",
             {"SelectionCriteria": {"CampaignIds": batch}, "FieldNames": ["Id", "CampaignId", "Name", "Status", "ServingStatus", "RegionIds"]},
             "AdGroups",
             version="v501",
-        )
+        ))
         if not result.manifest.complete:
             raise RuntimeError(result.manifest.error)
         adgroups.extend(result.rows)
 
     ads = []
-    for batch in chunks(campaign_ids, 5):
-        result = fetch_direct_pages(
+    for batch_number, batch in enumerate(chunks(campaign_ids, 5), start=1):
+        result = manifests.add(f"ads-{batch_number}", fetch_direct_pages(
             access,
             "ads",
             {
@@ -123,7 +124,7 @@ def main() -> None:
             },
             "Ads",
             version="v501",
-        )
+        ))
         if not result.manifest.complete:
             raise RuntimeError(result.manifest.error)
         ads.extend(result.rows)

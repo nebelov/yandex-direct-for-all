@@ -8,9 +8,10 @@ import os
 import re
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Set
 
-from check_access_paths import fetch_direct_pages, load_direct_access
+from check_access_paths import PageManifestStore, fetch_direct_pages, load_direct_access
 
 API_V5 = "https://api.direct.yandex.com/json/v5"
 API_V501 = "https://api.direct.yandex.com/json/v501"
@@ -74,27 +75,28 @@ def main() -> None:
 
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
     report = {"generated_at": datetime.utcnow().isoformat() + "Z", "campaign_ids": campaign_ids}
+    manifests = PageManifestStore(Path(args.output).with_name(f"{Path(args.output).stem}.collection-manifest.json"))
 
-    camps_result = fetch_direct_pages(
+    camps_result = manifests.add("campaigns", fetch_direct_pages(
         access,
         "campaigns",
         {"SelectionCriteria": {"Ids": campaign_ids}, "FieldNames": ["Id", "Name", "State", "Status", "NegativeKeywords"]},
         "Campaigns",
         version="v501",
-    )
+    ))
     if not camps_result.manifest.complete:
         raise RuntimeError(camps_result.manifest.error)
     campaigns = camps_result.rows
     cid_to_name = {c["Id"]: c["Name"] for c in campaigns}
     campaign_name_to_id = {v: k for k, v in cid_to_name.items()}
 
-    ag_result = fetch_direct_pages(
+    ag_result = manifests.add("adgroups", fetch_direct_pages(
         access,
         "adgroups",
         {"SelectionCriteria": {"CampaignIds": campaign_ids}, "FieldNames": ["Id", "Name", "CampaignId"]},
         "AdGroups",
         version="v501",
-    )
+    ))
     if not ag_result.manifest.complete:
         raise RuntimeError(ag_result.manifest.error)
     adgroups = ag_result.rows
@@ -112,7 +114,7 @@ def main() -> None:
         else:
             old_group_ids.add(gid)
 
-    kw_result = fetch_direct_pages(
+    kw_result = manifests.add("keywords", fetch_direct_pages(
         access,
         "keywords",
         {
@@ -121,7 +123,7 @@ def main() -> None:
         },
         "Keywords",
         version="v5",
-    )
+    ))
     if not kw_result.manifest.complete:
         raise RuntimeError(kw_result.manifest.error)
     keywords = kw_result.rows

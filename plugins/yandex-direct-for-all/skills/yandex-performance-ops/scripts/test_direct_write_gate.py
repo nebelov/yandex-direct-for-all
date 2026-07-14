@@ -231,6 +231,27 @@ class GateTests(unittest.TestCase):
             self.assertEqual(reversal["operations"][0]["params"], {"Campaigns": [{"Id": 1, "Name": "Старое название"}]})
             self.assertFalse(prepared.lock_path.exists())
 
+    def test_completed_run_id_cannot_execute_or_overwrite_evidence_twice(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prepared = self.prepare(root, self.pack(root / "approval.json"))
+            before = {"result": {"Campaigns": [{"Id": 1, "Name": "Старое название"}]}}
+            after = {"result": {"Campaigns": [{"Id": 1, "Name": "Новое название"}]}}
+            reader = mock.Mock(side_effect=[before, after])
+            writer = mock.Mock(return_value=({"result": {"UpdateResults": [{"Id": 1}]}}, 1))
+
+            first = gate.execute(prepared, writer=writer, reader=reader)
+            evidence = root / "state" / "direct-writes" / "test-run-001" / "result.json"
+            first_evidence = evidence.read_bytes()
+
+            self.assertEqual(first["status"], "complete")
+            with self.assertRaisesRegex(gate.GateError, "run_id уже использован"):
+                gate.execute(prepared, writer=writer, reader=reader)
+            self.assertEqual(writer.call_count, 1)
+            self.assertEqual(reader.call_count, 2)
+            self.assertEqual(evidence.read_bytes(), first_evidence)
+            self.assertFalse(prepared.lock_path.exists())
+
     def test_actual_unit_exhaustion_stops_before_next_write(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

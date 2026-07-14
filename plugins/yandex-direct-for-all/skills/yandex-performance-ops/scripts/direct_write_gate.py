@@ -363,78 +363,84 @@ def build_reversal(pack: dict[str, Any], before: dict[str, dict[str, Any]]) -> d
 def execute(prepared: Prepared, *, writer: Writer = default_writer, reader: Reader = default_reader) -> dict[str, Any]:
     pack = prepared.pack
     acquire_lock(prepared.lock_path, pack["run_id"])
-    evidence = prepared.state_root / "direct-writes" / pack["run_id"]
-    _private_dir(evidence)
-    _atomic_json(evidence / "pack.json", pack)
-    _atomic_json(evidence / "pack.sha256.json", {"sha256": prepared.pack_sha256})
-    _atomic_json(evidence / "approval.json", {"ref_name": Path(pack["owner_approval_ref"]).name, "pack_sha256": prepared.pack_sha256})
-    before: dict[str, dict[str, Any]] = {}
-    statuses: dict[str, str] = {}
-    used_units = 0
-    result: dict[str, Any] = {"run_id": pack["run_id"], "status": "incomplete", "api_units": 0, "operations": []}
     try:
-        for operation in pack["operations"]:
-            before[operation["id"]] = reader(operation["readback"], prepared.token, pack["client_login"], pack["environment"])
-        _atomic_json(evidence / "before.json", before)
-        reversal = build_reversal(pack, before)
-        _atomic_json(evidence / "reversal-candidate.json", reversal)
+        evidence = prepared.state_root / "direct-writes" / pack["run_id"]
+        _private_dir(evidence.parent)
+        try:
+            evidence.mkdir(mode=0o700)
+        except FileExistsError as exc:
+            raise GateError("Этот run_id уже использован; повторное выполнение пакета запрещено") from exc
+        os.chmod(evidence, 0o700)
+        _atomic_json(evidence / "pack.json", pack)
+        _atomic_json(evidence / "pack.sha256.json", {"sha256": prepared.pack_sha256})
+        _atomic_json(evidence / "approval.json", {"ref_name": Path(pack["owner_approval_ref"]).name, "pack_sha256": prepared.pack_sha256})
+        before: dict[str, dict[str, Any]] = {}
+        statuses: dict[str, str] = {}
+        used_units = 0
+        result: dict[str, Any] = {"run_id": pack["run_id"], "status": "incomplete", "api_units": 0, "operations": []}
+        try:
+            for operation in pack["operations"]:
+                before[operation["id"]] = reader(operation["readback"], prepared.token, pack["client_login"], pack["environment"])
+            _atomic_json(evidence / "before.json", before)
+            reversal = build_reversal(pack, before)
+            _atomic_json(evidence / "reversal-candidate.json", reversal)
 
-        for index, operation in enumerate(pack["operations"], 1):
-            record = {"id": operation["id"], "pair": f"{operation['service']}.{operation['method']}", "status": "pending"}
-            result["operations"].append(record)
-            if any(statuses.get(dependency) != "ready" for dependency in operation["depends_on"]):
-                record["status"] = "blocked_by_dependency"
-                statuses[operation["id"]] = record["status"]
-                break
-            if used_units + operation["max_api_units"] > pack["max_api_units"]:
-                record["status"] = "budget_exhausted_before_write"
-                statuses[operation["id"]] = record["status"]
-                break
-            request_evidence = {"service": operation["service"], "method": operation["method"], "version": operation["version"], "params": operation["params"]}
-            _atomic_json(evidence / f"request-{index:03d}.json", request_evidence)
-            payload, units = writer(operation, prepared.token, pack["client_login"], pack["environment"])
-            actual_units = max(0, int(units))
-            used_units += actual_units
-            _atomic_json(evidence / f"response-{index:03d}.json", payload)
-            record["api_units"] = actual_units
-            record["approved_max_api_units"] = operation["max_api_units"]
-            if actual_units > operation["max_api_units"] or used_units > pack["max_api_units"]:
-                record["status"] = "api_units_bound_exceeded"
-                statuses[operation["id"]] = record["status"]
-                break
-            if _is_partial(payload):
-                record["status"] = "partial"
-                statuses[operation["id"]] = record["status"]
-                break
-            after = reader(operation["readback"], prepared.token, pack["client_login"], pack["environment"])
-            _atomic_json(evidence / f"after-{index:03d}.json", after)
-            matches = _contains(after, operation["expected_after"])
-            _atomic_json(
-                evidence / f"diff-{index:03d}.json",
-                {
-                    "status": "match" if matches else "mismatch",
-                    "expected_after": operation["expected_after"],
-                    "actual_after": after,
-                },
-            )
-            if not matches:
-                record["status"] = "readback_mismatch"
-                statuses[operation["id"]] = record["status"]
-                break
-            record["status"] = "ready"
-            statuses[operation["id"]] = "ready"
+            for index, operation in enumerate(pack["operations"], 1):
+                record = {"id": operation["id"], "pair": f"{operation['service']}.{operation['method']}", "status": "pending"}
+                result["operations"].append(record)
+                if any(statuses.get(dependency) != "ready" for dependency in operation["depends_on"]):
+                    record["status"] = "blocked_by_dependency"
+                    statuses[operation["id"]] = record["status"]
+                    break
+                if used_units + operation["max_api_units"] > pack["max_api_units"]:
+                    record["status"] = "budget_exhausted_before_write"
+                    statuses[operation["id"]] = record["status"]
+                    break
+                request_evidence = {"service": operation["service"], "method": operation["method"], "version": operation["version"], "params": operation["params"]}
+                _atomic_json(evidence / f"request-{index:03d}.json", request_evidence)
+                payload, units = writer(operation, prepared.token, pack["client_login"], pack["environment"])
+                actual_units = max(0, int(units))
+                used_units += actual_units
+                _atomic_json(evidence / f"response-{index:03d}.json", payload)
+                record["api_units"] = actual_units
+                record["approved_max_api_units"] = operation["max_api_units"]
+                if actual_units > operation["max_api_units"] or used_units > pack["max_api_units"]:
+                    record["status"] = "api_units_bound_exceeded"
+                    statuses[operation["id"]] = record["status"]
+                    break
+                if _is_partial(payload):
+                    record["status"] = "partial"
+                    statuses[operation["id"]] = record["status"]
+                    break
+                after = reader(operation["readback"], prepared.token, pack["client_login"], pack["environment"])
+                _atomic_json(evidence / f"after-{index:03d}.json", after)
+                matches = _contains(after, operation["expected_after"])
+                _atomic_json(
+                    evidence / f"diff-{index:03d}.json",
+                    {
+                        "status": "match" if matches else "mismatch",
+                        "expected_after": operation["expected_after"],
+                        "actual_after": after,
+                    },
+                )
+                if not matches:
+                    record["status"] = "readback_mismatch"
+                    statuses[operation["id"]] = record["status"]
+                    break
+                record["status"] = "ready"
+                statuses[operation["id"]] = "ready"
 
-        complete = len(statuses) == len(pack["operations"]) and all(value == "ready" for value in statuses.values())
-        result["status"] = "complete" if complete else "incomplete"
-        result["api_units"] = used_units
-        result["reversal_available"] = bool(reversal["operations"])
-        _atomic_json(evidence / "result.json", result)
-        return result
-    except Exception as exc:
-        result["error"] = sanitize_error(exc, (prepared.token,))
-        result["api_units"] = used_units
-        _atomic_json(evidence / "result.json", result)
-        return result
+            complete = len(statuses) == len(pack["operations"]) and all(value == "ready" for value in statuses.values())
+            result["status"] = "complete" if complete else "incomplete"
+            result["api_units"] = used_units
+            result["reversal_available"] = bool(reversal["operations"])
+            _atomic_json(evidence / "result.json", result)
+            return result
+        except Exception as exc:
+            result["error"] = sanitize_error(exc, (prepared.token,))
+            result["api_units"] = used_units
+            _atomic_json(evidence / "result.json", result)
+            return result
     finally:
         prepared.lock_path.unlink(missing_ok=True)
 

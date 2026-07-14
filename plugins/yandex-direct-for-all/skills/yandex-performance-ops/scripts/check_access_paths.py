@@ -14,6 +14,7 @@ import os
 import re
 import stat
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -66,6 +67,28 @@ class PageManifest:
 class PageResult:
     rows: list[dict[str, Any]]
     manifest: PageManifest
+
+
+class PageManifestStore:
+    """Немедленно сохраняет доказательства каждой постраничной выгрузки."""
+
+    def __init__(self, path: Path):
+        self.path = path
+        self.sources: dict[str, dict[str, Any]] = {}
+
+    def add(self, name: str, result: PageResult) -> PageResult:
+        if not name or name in self.sources:
+            raise AccessError("Имя источника манифеста должно быть непустым и уникальным")
+        self.sources[name] = asdict(result.manifest)
+        atomic_write_json(
+            self.path,
+            {
+                "complete": bool(self.sources) and all(item["complete"] for item in self.sources.values()),
+                "source_count": len(self.sources),
+                "sources": self.sources,
+            },
+        )
+        return result
 
 
 def sanitize_error(value: object, secrets: tuple[str, ...] = ()) -> str:
@@ -169,6 +192,126 @@ def atomic_write_json(path: Path, value: Any) -> None:
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
+
+
+def atomic_write_bytes(path: Path, value: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(path.parent, 0o700)
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(value)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        os.chmod(path, 0o600)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def _header(headers: Any, name: str, default: str = "") -> str:
+    if headers is None:
+        return default
+    for key, value in headers.items():
+        if str(key).lower() == name.lower():
+            return str(value)
+    return default
+
+
+def _report_http(url: str, headers: dict[str, str], body: bytes) -> tuple[int, bytes, Any]:
+    request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(request) as response:
+            return response.status, response.read(), response.headers
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read(), exc.headers
+
+
+def fetch_direct_report(
+    access: DirectAccess,
+    params: dict[str, Any],
+    output_dir: Path,
+    *,
+    requester: Callable[[str, dict[str, str], bytes], tuple[int, bytes, Any]] = _report_http,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> dict[str, Any]:
+    """Получить Reports API с сохраняемым договором запроса, очереди и результата."""
+    body = _canonical_bytes({"params": params})
+    request_sha256 = hashlib.sha256(body).hexdigest()
+    output_dir = output_dir.expanduser().resolve()
+    request_path = output_dir / f"_api_reports_{request_sha256}.request.json"
+    state_path = output_dir / f"_api_reports_{request_sha256}.state.json"
+    artifact_path = output_dir / f"_api_reports_{request_sha256}.tsv"
+    atomic_write_bytes(request_path, body)
+    host = "api-sandbox.direct.yandex.com" if access.environment == "sandbox" else "api.direct.yandex.com"
+    headers = {
+        "Authorization": f"Bearer {access.token}",
+        "Accept-Language": "ru",
+        "Content-Type": "application/json; charset=utf-8",
+        "processingMode": "auto",
+        "returnMoneyInMicros": "false",
+        "skipReportHeader": "true",
+        "skipColumnHeader": "false",
+        "skipReportSummary": "true",
+    }
+    if access.client_login:
+        headers["Client-Login"] = access.client_login
+    url = f"https://{host}/json/v5/reports"
+    while True:
+        try:
+            status, payload, response_headers = requester(url, headers, body)
+        except Exception as exc:
+            state = {
+                "status": "error",
+                "request_sha256": request_sha256,
+                "request_artifact": request_path.name,
+                "error": sanitize_error(exc, (access.token,)),
+            }
+            atomic_write_json(state_path, state)
+            return state
+        request_id = _header(response_headers, "RequestId")
+        if status == 200 and payload:
+            atomic_write_bytes(artifact_path, payload)
+            state = {
+                "status": "ready",
+                "request_sha256": request_sha256,
+                "request_artifact": request_path.name,
+                "request_id": request_id,
+                "artifact": artifact_path.name,
+                "artifact_sha256": hashlib.sha256(payload).hexdigest(),
+                "bytes": len(payload),
+            }
+            atomic_write_json(state_path, state)
+            return state
+        if status in {200, 201, 202}:
+            retry_raw = _header(response_headers, "retryIn", "1")
+            try:
+                retry_in = max(float(retry_raw), 0.0)
+            except ValueError:
+                retry_in = 1.0
+            state = {
+                "status": "queued" if status == 201 else "pending",
+                "request_sha256": request_sha256,
+                "request_artifact": request_path.name,
+                "request_id": request_id,
+                "retry_in": retry_in,
+                "reports_in_queue": _header(response_headers, "reportsInQueue"),
+            }
+            atomic_write_json(state_path, state)
+            sleeper(retry_in)
+            continue
+        state = {
+            "status": "error",
+            "request_sha256": request_sha256,
+            "request_artifact": request_path.name,
+            "request_id": request_id,
+            "http_status": status,
+            "error": sanitize_error(payload.decode("utf-8", errors="replace"), (access.token,)),
+        }
+        atomic_write_json(state_path, state)
+        return state
 
 
 def direct_api_get(

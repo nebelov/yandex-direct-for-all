@@ -26,8 +26,9 @@ import json
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
-from check_access_paths import fetch_direct_pages, load_direct_access
+from check_access_paths import PageManifestStore, fetch_direct_pages, load_direct_access
 
 # === КОНФИГ ===
 API_V5 = "https://api.direct.yandex.com/json/v5"
@@ -42,7 +43,7 @@ BOLD = "\033[1m"
 RESET = "\033[0m"
 
 class CampaignAutotest:
-    def __init__(self, access, campaign_ids, pre_moderation=False):
+    def __init__(self, access, campaign_ids, pre_moderation=False, collection_manifest=None):
         self.access = access
         self.login = access.client_login
         self.campaign_ids = campaign_ids
@@ -53,6 +54,9 @@ class CampaignAutotest:
         self.passes = 0
         self.shopping_campaign_ids = set()  # кампании с ShoppingAd
         self.campaign_tracking_modes = {}
+        manifest_path = Path(collection_manifest or "campaign_autotest.collection-manifest.json")
+        self.page_manifests = PageManifestStore(manifest_path)
+        self.page_call_number = 0
 
     def ok(self, check, detail=""):
         self.results.append(("PASS", check, detail))
@@ -83,7 +87,11 @@ class CampaignAutotest:
         }
         if method != "get" or endpoint not in keys:
             return {"error": "Неподдерживаемый маршрут чтения"}
-        result = fetch_direct_pages(self.access, endpoint, params, keys[endpoint], version=version)
+        self.page_call_number += 1
+        result = self.page_manifests.add(
+            f"{self.page_call_number:03d}-{endpoint}",
+            fetch_direct_pages(self.access, endpoint, params, keys[endpoint], version=version),
+        )
         if not result.manifest.complete:
             return {"error": result.manifest.error}
         return {"result": {keys[endpoint]: result.rows}}
@@ -806,12 +814,22 @@ def main():
     parser.add_argument("--campaign-ids", required=True, help="ID кампаний через запятую")
     parser.add_argument("--pre-moderation", action="store_true",
                         help="Режим проверки перед отправкой на модерацию (DRAFT/ELIGIBLE допустимы)")
+    parser.add_argument(
+        "--collection-manifest",
+        default="campaign_autotest.collection-manifest.json",
+        help="Файл доказательств полноты всех постраничных выгрузок",
+    )
     args = parser.parse_args()
     access = load_direct_access(args.access_file)
 
     campaign_ids = [int(x.strip()) for x in args.campaign_ids.split(",")]
 
-    tester = CampaignAutotest(access, campaign_ids, pre_moderation=args.pre_moderation)
+    tester = CampaignAutotest(
+        access,
+        campaign_ids,
+        pre_moderation=args.pre_moderation,
+        collection_manifest=args.collection_manifest,
+    )
     tester.run()
 
 

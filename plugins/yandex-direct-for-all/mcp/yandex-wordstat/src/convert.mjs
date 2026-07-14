@@ -241,12 +241,24 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function processIsAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error.code === 'ESRCH') return false;
+    if (error.code === 'EPERM') return true;
+    throw error;
+  }
+}
+
 export class WordstatUsageLedger {
-  constructor({ statePath = defaultStatePath(), now = () => Date.now(), sleep = delay } = {}) {
+  constructor({ statePath = defaultStatePath(), now = () => Date.now(), sleep = delay, isProcessAlive = processIsAlive } = {}) {
     this.statePath = statePath;
     this.lockPath = `${statePath}.lock`;
     this.now = now;
     this.sleep = sleep;
+    this.isProcessAlive = isProcessAlive;
   }
 
   async reserve({ endpoint, billed }) {
@@ -296,11 +308,37 @@ export class WordstatUsageLedger {
   async #lock() {
     await mkdir(dirname(this.statePath), { recursive: true, mode: 0o700 });
     for (;;) {
+      let handle;
       try {
-        await mkdir(this.lockPath, { mode: 0o700 });
+        handle = await open(this.lockPath, 'wx', 0o600);
+        await handle.writeFile(`${JSON.stringify({ version: 1, pid: process.pid, acquiredAt: new Date().toISOString() })}\n`);
+        await handle.sync();
+        await handle.close();
         return;
       } catch (error) {
+        await handle?.close().catch(() => {});
         if (error.code !== 'EEXIST') throw error;
+        let owner;
+        try {
+          owner = JSON.parse(await readFile(this.lockPath, 'utf8'));
+        } catch (ownerError) {
+          if (ownerError.code === 'ENOENT') continue;
+          throw new Error(`Блокировка квоты Wordstat повреждена: ${ownerError.message}`);
+        }
+        if (!Number.isInteger(owner.pid) || owner.pid <= 0) {
+          throw new Error('Блокировка квоты Wordstat повреждена: отсутствует владелец процесса');
+        }
+        if (!this.isProcessAlive(owner.pid)) {
+          const stalePath = `${this.lockPath}.stale-${process.pid}-${Math.random().toString(16).slice(2)}`;
+          try {
+            await rename(this.lockPath, stalePath);
+          } catch (renameError) {
+            if (renameError.code === 'ENOENT') continue;
+            throw renameError;
+          }
+          await rm(stalePath, { force: true });
+          continue;
+        }
         await this.sleep(25);
       }
     }

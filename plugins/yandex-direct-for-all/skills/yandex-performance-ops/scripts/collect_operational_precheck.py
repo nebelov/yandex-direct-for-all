@@ -19,8 +19,9 @@ import urllib.error
 import urllib.request
 
 from dataclasses import asdict
+from pathlib import Path
 
-from check_access_paths import fetch_direct_pages, load_direct_access
+from check_access_paths import DirectAccess, fetch_direct_pages, fetch_direct_report, load_direct_access
 
 API_V5 = "https://api.direct.yandex.com/json/v5"
 API_V501 = "https://api.direct.yandex.com/json/v501"
@@ -77,6 +78,7 @@ def report_call(
     token,
     login,
     report_name,
+    output_dir,
     extra_filters=None,
     goals=None,
     attribution_models=None,
@@ -104,46 +106,11 @@ def report_call(
         params["Goals"] = goals
     if attribution_models:
         params["AttributionModels"] = attribution_models
-    body = json.dumps({"params": params}).encode("utf-8")
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-        "processingMode": "auto",
-        "returnMoneyInMicros": "false",
-        "skipReportHeader": "true",
-        "skipColumnHeader": "false",
-        "skipReportSummary": "true",
-    }
-    if login:
-        headers["Client-Login"] = login
-
-    attempt = 0
-    while True:
-        host = "api-sandbox.direct.yandex.com" if environment == "sandbox" else "api.direct.yandex.com"
-        req = urllib.request.Request(f"https://{host}/json/v5/reports", data=body, headers=headers)
-        try:
-            with urllib.request.urlopen(req) as resp:
-                status = resp.status
-                payload = resp.read().decode("utf-8")
-                if status in (201, 202) or (status == 200 and not payload.strip()):
-                    retry_in = int(resp.headers.get("retryIn", "15"))
-                    time.sleep(max(retry_in, 5))
-                    continue
-                return payload
-        except urllib.error.HTTPError as exc:
-            if exc.code in (201, 202):
-                retry_in = int(exc.headers.get("retryIn", "15"))
-                time.sleep(max(retry_in, 5))
-                continue
-            payload = exc.read().decode("utf-8", errors="ignore")
-            raise RuntimeError(f"Report {report_type} cid={campaign_id} HTTP {exc.code}: {payload[:400]}")
-        except Exception as exc:
-            attempt += 1
-            print(
-                f"REPORT RETRY {attempt} {report_type} cid={campaign_id}: {type(exc).__name__}",
-                file=sys.stderr,
-            )
-            time.sleep(10)
+    access = DirectAccess(token=token, client_login=login, environment=environment)
+    state = fetch_direct_report(access, params, Path(output_dir))
+    if state.get("status") != "ready":
+        raise RuntimeError(f"Report {report_type} cid={campaign_id} не готов: {state.get('status')}")
+    return (Path(output_dir) / state["artifact"]).read_text(encoding="utf-8")
 
 
 def save_json(data, path):
@@ -256,6 +223,7 @@ def collect_report_group(
             token,
             login,
             report_name,
+            outdir,
             extra_filters=extra_filters,
             goals=goals,
             attribution_models=attribution_models,

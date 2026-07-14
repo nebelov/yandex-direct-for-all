@@ -97,6 +97,48 @@ PY
   fi
 }
 
+check_unknown_identical_path_is_rejected() {
+  export HOME="$root/unknown-identical/home"
+  export CODEX_HOME="$HOME/.codex"
+  export CLAUDE_HOME="$HOME/.claude"
+  mkdir -p "$CODEX_HOME/plugins/yandex-direct-for-all"
+  rsync -a --exclude node_modules --exclude __pycache__ --exclude .venv "$plugin_root/" "$CODEX_HOME/plugins/yandex-direct-for-all/"
+  if "$installer" --target codex >"$root/unknown-identical.out" 2>&1; then
+    echo "Неизвестный идентичный каталог должен быть отклонён" >&2
+    exit 1
+  fi
+  grep -q "не зарегистрирован этим установщиком" "$root/unknown-identical.out"
+  [[ ! -e "$CODEX_HOME/state/yandex-direct-for-all/install-manifest.json" ]]
+}
+
+check_both_rollback_is_validated_before_any_write() {
+  export HOME="$root/both/home"
+  export CODEX_HOME="$HOME/.codex"
+  export CLAUDE_HOME="$HOME/.claude"
+  mkdir -p "$HOME"
+  local output run_id codex_skill claude_skill codex_before
+  output="$("$installer" --target both --apply)"
+  run_id="${output##*RUN_ID=}"
+  run_id="${run_id%%$'\n'*}"
+  codex_skill="$CODEX_HOME/skills/yandex-wordstat/SKILL.md"
+  claude_skill="$CLAUDE_HOME/skills/yandex-wordstat/SKILL.md"
+  codex_before="$(shasum -a 256 "$codex_skill" | awk '{print $1}')"
+  cp "$claude_skill" "$root/both-claude-skill.before"
+  printf '\nuser change\n' >> "$claude_skill"
+  if "$installer" --target both --rollback "$run_id" >"$root/both-rollback.out" 2>&1; then
+    echo "Откат обеих сред должен быть отклонён до первой записи" >&2
+    exit 1
+  fi
+  grep -q "после установки изменён управляемый путь" "$root/both-rollback.out"
+  [[ "$(shasum -a 256 "$codex_skill" | awk '{print $1}')" == "$codex_before" ]]
+  cp "$root/both-claude-skill.before" "$claude_skill"
+  "$installer" --target both --rollback "$run_id" >/dev/null
+  [[ ! -e "$CODEX_HOME/plugins/yandex-direct-for-all" ]]
+  [[ ! -e "$CLAUDE_HOME/plugins/yandex-direct-for-all" ]]
+}
+
+check_unknown_identical_path_is_rejected
 check_target codex
 check_target claude
+check_both_rollback_is_validated_before_any_write
 echo "install bundle contract: PASS"

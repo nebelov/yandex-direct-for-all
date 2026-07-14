@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -251,5 +251,31 @@ describe('persistent Wordstat usage ledger', () => {
     const snapshot = await ledger.snapshot();
     expect(snapshot.requestsLastHour).toBe(100);
     expect(snapshot.billedLastHour).toBe(0);
+  });
+
+  test('recovers an owner-recorded lock left by a dead process', async () => {
+    const statePath = await quotaFixture();
+    await writeFile(`${statePath}.lock`, `${JSON.stringify({ version: 1, pid: 999999, acquiredAt: '2026-07-14T00:00:00Z' })}\n`, { mode: 0o600 });
+    const checkedOwners = [];
+    const ledger = new WordstatUsageLedger({
+      statePath,
+      now: () => 200_000,
+      isProcessAlive: (pid) => { checkedOwners.push(pid); return false; },
+    });
+    await ledger.reserve({ endpoint: '/v2/wordstat/topRequests', billed: true });
+    expect(checkedOwners).toEqual([999999]);
+    expect((await ledger.snapshot()).requestsLastHour).toBe(1);
+    await expect(stat(`${statePath}.lock`)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  test('rejects a corrupt lock instead of waiting forever', async () => {
+    const statePath = await quotaFixture();
+    await writeFile(`${statePath}.lock`, '{not-json\n', { mode: 0o600 });
+    const waits = [];
+    const ledger = new WordstatUsageLedger({ statePath, sleep: async (ms) => waits.push(ms) });
+    await expect(ledger.reserve({ endpoint: '/v2/wordstat/topRequests', billed: true })).rejects.toThrow(
+      'Блокировка квоты Wordstat повреждена',
+    );
+    expect(waits).toEqual([]);
   });
 });

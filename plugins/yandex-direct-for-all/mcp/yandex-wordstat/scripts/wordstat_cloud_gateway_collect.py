@@ -234,8 +234,14 @@ class QuotaPacer:
             return {"requestTimes": [], "billedTimes": [], "nextAllowedAt": 0.0}
         try:
             state = load_json(self.state_path)
-        except Exception:
-            return {"requestTimes": [], "billedTimes": [], "nextAllowedAt": 0.0}
+        except Exception as exc:
+            raise RuntimeError("Состояние квоты Wordstat повреждено; запрос запрещён до восстановления журнала") from exc
+        if not isinstance(state, dict):
+            raise RuntimeError("Состояние квоты Wordstat повреждено; ожидается объект JSON")
+        if not isinstance(state.get("requestTimes"), list) or not isinstance(state.get("billedTimes", []), list):
+            raise RuntimeError("Состояние квоты Wordstat повреждено; списки запросов отсутствуют")
+        if not isinstance(state.get("nextAllowedAt", 0.0), (int, float)):
+            raise RuntimeError("Состояние квоты Wordstat повреждено; nextAllowedAt имеет неверный тип")
         return state
 
     def _save(self, state: dict[str, Any]) -> None:

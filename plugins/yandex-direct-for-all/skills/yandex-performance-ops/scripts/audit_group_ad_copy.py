@@ -8,9 +8,10 @@ import os
 import re
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
-from check_access_paths import fetch_direct_pages, load_direct_access
+from check_access_paths import PageManifestStore, fetch_direct_pages, load_direct_access
 
 API_V5 = "https://api.direct.yandex.com/json/v5"
 API_V501 = "https://api.direct.yandex.com/json/v501"
@@ -50,8 +51,10 @@ def main() -> None:
 
     os.makedirs(os.path.dirname(args.output_tsv), exist_ok=True)
     os.makedirs(os.path.dirname(args.output_json), exist_ok=True)
+    manifest_path = Path(args.output_json).with_name(f"{Path(args.output_json).stem}.collection-manifest.json")
+    manifests = PageManifestStore(manifest_path)
 
-    ag_result = fetch_direct_pages(
+    ag_result = manifests.add("adgroups", fetch_direct_pages(
         access,
         "adgroups",
         {
@@ -60,18 +63,18 @@ def main() -> None:
         },
         "AdGroups",
         version="v501",
-    )
+    ))
     if not ag_result.manifest.complete:
         raise RuntimeError(ag_result.manifest.error)
     adgroups = ag_result.rows
 
-    camp_result = fetch_direct_pages(
+    camp_result = manifests.add("campaigns", fetch_direct_pages(
         access,
         "campaigns",
         {"SelectionCriteria": {"Ids": campaign_ids}, "FieldNames": ["Id", "Name"]},
         "Campaigns",
         version="v501",
-    )
+    ))
     if not camp_result.manifest.complete:
         raise RuntimeError(camp_result.manifest.error)
     cid_to_name = {c["Id"]: c["Name"] for c in camp_result.rows}
@@ -86,7 +89,7 @@ def main() -> None:
         if gname in target_group_names.get(cname, set()):
             target_gids.append(gid)
 
-    ads_result = fetch_direct_pages(
+    ads_result = manifests.add("ads", fetch_direct_pages(
         access,
         "ads",
         {
@@ -96,7 +99,7 @@ def main() -> None:
         },
         "Ads",
         version="v5",
-    )
+    ))
     if not ads_result.manifest.complete:
         raise RuntimeError(ads_result.manifest.error)
     ads = ads_result.rows

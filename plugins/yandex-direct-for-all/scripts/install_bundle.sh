@@ -192,7 +192,10 @@ check_target() {
     fi
     current_hash="$(tree_hash "$dest")"
     previous_hash="$(manifest_value "$manifest" "$rel")"
-    if [[ "$current_hash" == "$src_hash" ]]; then
+    if [[ -z "$previous_hash" ]]; then
+      echo "  КОНФЛИКТ  $rel (существующий путь не зарегистрирован этим установщиком)" >&2
+      conflicts=1
+    elif [[ "$current_hash" == "$src_hash" ]]; then
       echo "  БЕЗ ИЗМЕНЕНИЙ  $rel"
     elif [[ -n "$previous_hash" && "$current_hash" == "$previous_hash" ]]; then
       echo "  ОБНОВИТЬ  $rel"
@@ -317,11 +320,10 @@ install_target() {
   chmod 600 "$run/status"
 }
 
-rollback_target() {
+validate_rollback_target() {
   local kind="$1" root="$2"
   local state="$root/state/yandex-direct-for-all"
   local run="$state/runs/$rollback_id"
-  local backup="$root/backups/yandex-direct-for-all/$rollback_id"
   local current_manifest="$state/install-manifest.json"
   [[ -d "$run" ]] || { echo "Нет записи отката $rollback_id для $kind" >&2; return 5; }
   [[ "$(cat "$run/status" 2>/dev/null || true)" == applied ]] || {
@@ -348,6 +350,15 @@ rollback_target() {
       return 5
     fi
   fi
+}
+
+rollback_target() {
+  local kind="$1" root="$2"
+  local state="$root/state/yandex-direct-for-all"
+  local run="$state/runs/$rollback_id"
+  local backup="$root/backups/yandex-direct-for-all/$rollback_id"
+  local current_manifest="$state/install-manifest.json"
+  local marketplace="$HOME/.agents/plugins/marketplace.json"
 
   while IFS=$'\t' read -r rel existed index; do
     [[ -n "$rel" ]] || continue
@@ -387,6 +398,11 @@ rollback_target() {
 }
 
 if [[ "$mode" == rollback ]]; then
+  # Для нескольких сред сначала проверяем их все. Ни одна запись не начинается,
+  # пока откат не признан безопасным одновременно для Codex и Claude.
+  for item in "${roots[@]}"; do
+    validate_rollback_target "${item%%:*}" "${item#*:}"
+  done
   for item in "${roots[@]}"; do
     rollback_target "${item%%:*}" "${item#*:}"
   done

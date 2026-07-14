@@ -23,6 +23,7 @@ from check_access_paths import (
     PageResult,
     atomic_write_json,
     fetch_direct_pages,
+    fetch_direct_report,
     load_direct_access,
 )
 
@@ -195,7 +196,7 @@ def fetch_modified_ids(token, login, cids, days, environment="production"):
     return mod_camps, mod_groups, mod_ads, pages
 
 
-def get_report_bulk(report_type, fields, date_from, date_to, token, login, name="", with_goals=True, environment="production"):
+def get_report_bulk(report_type, fields, date_from, date_to, token, login, output_dir, name="", with_goals=True, environment="production"):
     report_name = f"ct3_{report_type}_{name}_{int(time.time())}"
     params = {
         "SelectionCriteria": {"DateFrom": date_from, "DateTo": date_to},
@@ -206,30 +207,13 @@ def get_report_bulk(report_type, fields, date_from, date_to, token, login, name=
     if with_goals and GOAL_ID:
         params["Goals"] = [GOAL_ID]
         params["AttributionModels"] = ["LC"]
-    body = {"params": params}
-    while True:
-        host = "api-sandbox.direct.yandex.com" if environment == "sandbox" else "api.direct.yandex.com"
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json", "processingMode": "auto",
-            "returnMoneyInMicros": "false", "skipReportHeader": "true", "skipReportSummary": "true"
-        }
-        if login:
-            headers["Client-Login"] = login
-        req = urllib.request.Request(f"https://{host}/json/v5/reports", data=json.dumps(body).encode(), headers=headers)
-        try:
-            resp = urllib.request.urlopen(req)
-            if resp.status in (201, 202):
-                time.sleep(int(resp.headers.get("retryIn", 5)))
-                continue
-            return resp.read().decode()
-        except urllib.error.HTTPError as e:
-            if e.code in (201, 202):
-                time.sleep(int(e.headers.get("retryIn", 5)))
-                continue
-            if e.code == 400 and with_goals:
-                return get_report_bulk(report_type, fields, date_from, date_to, token, login, name + "_ng", with_goals=False, environment=environment)
-            raise RuntimeError(f"Reports API вернул HTTP {e.code}") from e
+    access = DirectAccess(token=token, client_login=login, environment=environment)
+    state = fetch_direct_report(access, params, Path(output_dir))
+    if state.get("http_status") == 400 and with_goals:
+        return get_report_bulk(report_type, fields, date_from, date_to, token, login, output_dir, name + "_ng", with_goals=False, environment=environment)
+    if state.get("status") != "ready":
+        raise RuntimeError(f"Reports API не подготовил отчёт: {state.get('status')}")
+    return (Path(output_dir) / state["artifact"]).read_text(encoding="utf-8")
 
 
 def fetch_image_urls(token, login, hashes, environment="production"):
@@ -1141,13 +1125,13 @@ def main():
                    "Conversions", "CostPerConversion"]
 
     print("     camp before...", flush=True)
-    tsv_cb = get_report_bulk("CAMPAIGN_PERFORMANCE_REPORT", camp_fields, full_from, before_to, token, login, "bef", environment=access.environment)
+    tsv_cb = get_report_bulk("CAMPAIGN_PERFORMANCE_REPORT", camp_fields, full_from, before_to, token, login, data_dir, "bef", environment=access.environment)
     time.sleep(2)
     print("     camp after...", flush=True)
-    tsv_ca = get_report_bulk("CAMPAIGN_PERFORMANCE_REPORT", camp_fields, after_from, yesterday.isoformat(), token, login, "aft", environment=access.environment)
+    tsv_ca = get_report_bulk("CAMPAIGN_PERFORMANCE_REPORT", camp_fields, after_from, yesterday.isoformat(), token, login, data_dir, "aft", environment=access.environment)
     time.sleep(2)
     print("     groups...", flush=True)
-    tsv_gp = get_report_bulk("ADGROUP_PERFORMANCE_REPORT", grp_fields, full_from, yesterday.isoformat(), token, login, "grp", environment=access.environment)
+    tsv_gp = get_report_bulk("ADGROUP_PERFORMANCE_REPORT", grp_fields, full_from, yesterday.isoformat(), token, login, data_dir, "grp", environment=access.environment)
     time.sleep(2)
 
     # Parse reports

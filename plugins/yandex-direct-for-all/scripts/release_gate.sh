@@ -169,6 +169,9 @@ PY
 
 python3 - <<'PY'
 import sys
+import hashlib
+import json
+import tempfile
 from pathlib import Path
 from unittest import mock
 
@@ -202,6 +205,143 @@ with mock.patch.object(tracker, "api_call", side_effect=[
 ]):
     partial = tracker.fetch_paginated("campaigns", "get", params, "Campaigns", "TOKEN", "LOGIN")
 assert not partial.manifest.complete and partial.manifest.pages == 1 and partial.manifest.objects == 1
+
+with tempfile.TemporaryDirectory() as directory:
+    output = Path(directory)
+    responses = iter([
+        (201, b"", {"RequestId": "report-1", "retryIn": "0", "reportsInQueue": "2"}),
+        (202, b"", {"RequestId": "report-1", "retryIn": "0", "reportsInQueue": "1"}),
+        (200, b"CampaignId\tClicks\n1\t2\n", {"RequestId": "report-1"}),
+    ])
+    states = []
+    def requester(url, headers, body):
+        assert url.endswith("/json/v5/reports")
+        assert headers.get("Client-Login") == "client"
+        return next(responses)
+    def sleeper(_seconds):
+        state_path = next(output.glob("_api_reports_*.state.json"))
+        states.append(json.loads(state_path.read_text(encoding="utf-8")))
+    ready = tracker.fetch_direct_report(
+        tracker.DirectAccess("TOKEN", "client", "production"),
+        {"ReportName": "contract", "ReportType": "CAMPAIGN_PERFORMANCE_REPORT"},
+        output,
+        requester=requester,
+        sleeper=sleeper,
+    )
+    assert [item["status"] for item in states] == ["queued", "pending"]
+    assert all(item["request_id"] == "report-1" for item in states)
+    request_path = output / ready["request_artifact"]
+    artifact_path = output / ready["artifact"]
+    assert hashlib.sha256(request_path.read_bytes()).hexdigest() == ready["request_sha256"]
+    assert hashlib.sha256(artifact_path.read_bytes()).hexdigest() == ready["artifact_sha256"]
+    assert ready["status"] == "ready" and ready["request_id"] == "report-1"
+PY
+
+python3 - <<'PY'
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+from unittest import mock
+
+scripts = Path("plugins/yandex-direct-for-all/skills/yandex-performance-ops/scripts").resolve()
+sys.path.insert(0, str(scripts))
+from check_access_paths import DirectAccess, PageManifest, PageResult
+
+def load(name):
+    spec = importlib.util.spec_from_file_location(f"release_pages_{name}", scripts / f"{name}.py")
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+def page(service, key, rows, *, pages=1, complete=True, error=""):
+    return PageResult(rows, PageManifest(service, key, pages, len(rows), complete, "a" * 64, error))
+
+access = DirectAccess("TOKEN", "client", "production")
+campaign_autotest = load("campaign_autotest")
+audit_delivery = load("audit_ad_delivery_failures")
+audit_copy = load("audit_group_ad_copy")
+readiness = load("verify_live_readiness")
+fetch_sqr = load("fetch_sqr_parallel")
+
+with tempfile.TemporaryDirectory() as directory:
+    temp = Path(directory)
+    manifest_path = temp / "autotest-manifest.json"
+    tester = campaign_autotest.CampaignAutotest(access, [1], collection_manifest=manifest_path)
+    with mock.patch.object(campaign_autotest, "fetch_direct_pages", side_effect=[
+        page("campaigns", "Campaigns", [{"Id": 1}, {"Id": 2}], pages=2),
+        page("ads", "Ads", [{"Id": 3}], pages=1, complete=False, error="partial"),
+    ]):
+        assert len(tester.call("campaigns", "get", {}, version="v501")["result"]["Campaigns"]) == 2
+        assert tester.call("ads", "get", {}) == {"error": "partial"}
+    saved = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert not saved["complete"] and saved["source_count"] == 2
+    assert saved["sources"]["001-campaigns"]["pages"] == 2
+    assert saved["sources"]["001-campaigns"]["objects"] == 2
+    assert saved["sources"]["002-ads"]["complete"] is False
+
+    delivery_dir = temp / "delivery"
+    with mock.patch.object(sys, "argv", ["audit", "--output-dir", str(delivery_dir)]), \
+         mock.patch.object(audit_delivery, "load_direct_access", return_value=access), \
+         mock.patch.object(audit_delivery, "fetch_direct_pages", return_value=page("campaigns", "Campaigns", [{"Id": 1}], complete=False, error="partial")):
+        try:
+            audit_delivery.main()
+        except RuntimeError as exc:
+            assert str(exc) == "partial"
+        else:
+            raise AssertionError("delivery audit accepted a partial page result")
+    delivery_manifest = json.loads((delivery_dir / "collection-manifest.json").read_text(encoding="utf-8"))
+    assert not delivery_manifest["complete"] and delivery_manifest["sources"]["campaigns"]["objects"] == 1
+
+    cluster = temp / "cluster.tsv"
+    cluster.write_text("campaign_name\tadgroup_name\tphrase\nC\tG\tphrase\n", encoding="utf-8")
+    copy_json = temp / "copy" / "result.json"
+    with mock.patch.object(sys, "argv", [
+        "audit", "--campaign-ids", "1", "--cluster-map", str(cluster),
+        "--output-tsv", str(temp / "copy" / "result.tsv"), "--output-json", str(copy_json),
+    ]), mock.patch.object(audit_copy, "load_direct_access", return_value=access), \
+         mock.patch.object(audit_copy, "fetch_direct_pages", return_value=page("adgroups", "AdGroups", [], complete=False, error="partial")):
+        try:
+            audit_copy.main()
+        except RuntimeError as exc:
+            assert str(exc) == "partial"
+        else:
+            raise AssertionError("copy audit accepted a partial page result")
+    copy_manifest = json.loads((copy_json.parent / "result.collection-manifest.json").read_text(encoding="utf-8"))
+    assert not copy_manifest["complete"] and copy_manifest["sources"]["adgroups"]["pages"] == 1
+
+    minus = temp / "minus.tsv"
+    minus.write_text("word\nminus\n", encoding="utf-8")
+    readiness_json = temp / "readiness" / "result.json"
+    with mock.patch.object(sys, "argv", [
+        "verify", "--campaign-ids", "1", "--cluster-map", str(cluster),
+        "--minus-words", str(minus), "--output", str(readiness_json),
+    ]), mock.patch.object(readiness, "load_direct_access", return_value=access), \
+         mock.patch.object(readiness, "fetch_direct_pages", return_value=page("campaigns", "Campaigns", [], complete=False, error="partial")):
+        try:
+            readiness.main()
+        except RuntimeError as exc:
+            assert str(exc) == "partial"
+        else:
+            raise AssertionError("readiness check accepted a partial page result")
+    readiness_manifest = json.loads((readiness_json.parent / "result.collection-manifest.json").read_text(encoding="utf-8"))
+    assert not readiness_manifest["complete"] and readiness_manifest["sources"]["campaigns"]["checksum"] == "a" * 64
+
+    sqr_dir = temp / "sqr"
+    sqr_dir.mkdir()
+    (sqr_dir / "one.tsv").write_text("CampaignId\tClicks\n1\t2\n", encoding="utf-8")
+    def report(_access, definition, _output):
+        if definition["ReportName"].startswith("public-sqr-1-"):
+            return {"status": "ready", "artifact": "one.tsv", "artifact_sha256": "b" * 64}
+        raise RuntimeError("synthetic report failure")
+    with mock.patch.object(fetch_sqr, "load_direct_access", return_value=access), \
+         mock.patch.object(fetch_sqr, "fetch_direct_report", side_effect=report):
+        sqr_manifest = fetch_sqr.collect(None, [1, 2], "2026-01-01", "2026-01-02", sqr_dir, 1)
+    assert not sqr_manifest["complete"] and sqr_manifest["ready"] == 1 and sqr_manifest["failed"] == 1
+    assert sqr_manifest["merged"]["parts"] == 1
+    assert json.loads((sqr_dir / "manifest.json").read_text(encoding="utf-8"))["parts"][1]["status"] == "error"
 PY
 
 python3 - <<'PY'
