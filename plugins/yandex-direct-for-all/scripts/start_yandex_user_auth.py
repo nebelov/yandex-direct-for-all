@@ -18,11 +18,11 @@ import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
 
-import requests
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+
+import portable_http as requests  # noqa: E402
 
 from yandex_auth_common import (  # noqa: E402
     TOKEN_ENV_NAMES,
@@ -162,7 +162,11 @@ def resolve_config(args: argparse.Namespace) -> AuthConfig:
         args.client_login
         or os.environ.get("YANDEX_DIRECT_CLIENT_LOGIN", "")
         or overlay_direct_login(overlay)
-    )
+    ).strip()
+    if args.service == "direct" and not expected_login:
+        raise ValueError(
+            "Для Директа обязателен --client-login: укажите логин рекламодателя или клиента агентства."
+        )
     expected_counter = (
         args.counter_id
         or os.environ.get("YANDEX_METRIKA_COUNTER_ID", "")

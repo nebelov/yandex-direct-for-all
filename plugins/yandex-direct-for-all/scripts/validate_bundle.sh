@@ -59,7 +59,10 @@ require_file "$PLUGIN_DIR/scripts/start_yandex_user_auth.sh"
 require_file "$PLUGIN_DIR/scripts/exchange_yandex_user_code.sh"
 require_file "$PLUGIN_DIR/scripts/preflight_yandex_user_token.py"
 require_file "$PLUGIN_DIR/scripts/yandex_auth_common.py"
+require_file "$PLUGIN_DIR/scripts/portable_http.py"
 require_file "$PLUGIN_DIR/tests/test_yandex_user_auth.py"
+require_file "$PLUGIN_DIR/tests/test_portable_http.py"
+require_file "$PLUGIN_DIR/tests/test_portable_scripts.py"
 require_file "$PLUGIN_DIR/mcp/yandex-direct/tests/test_read_only_server.py"
 require_file "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/check_access_paths.py"
 require_file "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/collect_direct_cabinet_snapshot.py"
@@ -74,6 +77,7 @@ python3 -m json.tool "$PLUGIN_DIR/config/yandex_oauth_public_profiles.json" >/de
 python3 -m py_compile \
   "$PLUGIN_DIR/scripts/start_yandex_user_auth.py" \
   "$PLUGIN_DIR/scripts/preflight_yandex_user_token.py" \
+  "$PLUGIN_DIR/scripts/portable_http.py" \
   "$PLUGIN_DIR/scripts/yandex_auth_common.py" \
   "$PLUGIN_DIR/scripts/render_yandex_token_env.py" \
   "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/oauth_get_token.py" \
@@ -97,11 +101,16 @@ TMP_AUTH_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_AUTH_ROOT"' EXIT
 
 for service in direct metrika audience; do
+  auth_args=()
+  if [[ "$service" == direct ]]; then
+    auth_args=(--client-login synthetic-advertiser)
+  fi
   python3 "$PLUGIN_DIR/scripts/start_yandex_user_auth.py" \
       --service "$service" \
       --auth-root "$TMP_AUTH_ROOT" \
       --print-only \
-      --no-browser >/dev/null
+      --no-browser \
+      "${auth_args[@]}" >/dev/null
 done
 
 python3 - <<PY
@@ -120,7 +129,19 @@ for name in [
 PY
 
 python3 "$PLUGIN_DIR/tests/test_yandex_user_auth.py" >/dev/null
+python3 "$PLUGIN_DIR/tests/test_portable_http.py" >/dev/null
+python3 "$PLUGIN_DIR/tests/test_portable_scripts.py" >/dev/null
 python3 "$PLUGIN_DIR/mcp/yandex-direct/tests/test_read_only_server.py" >/dev/null
+
+for file in \
+  "$PLUGIN_DIR/skills/amocrm-api-control/scripts/exchange_amocrm_token.py" \
+  "$PLUGIN_DIR/skills/amocrm-api-control/scripts/fetch_amocrm_schema.py" \
+  "$PLUGIN_DIR/skills/yandex-direct-client-lifecycle/scripts/firecrawl_scrape.py" \
+  "$PLUGIN_DIR/skills/yandex-direct-client-lifecycle/scripts/sitemap_probe_batch.py" \
+  "$PLUGIN_DIR/skills/yandex-direct-client-lifecycle/scripts/yandex_search_ads_batch.py" \
+  "$PLUGIN_DIR/skills/yandex-direct-client-lifecycle/scripts/yandex_search_batch.py"; do
+  PYTHONNOUSERSITE=1 python3 -I "$file" --help >/dev/null
+done
 
 python3 - <<PY
 import ast

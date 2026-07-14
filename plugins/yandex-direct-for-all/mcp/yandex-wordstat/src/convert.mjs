@@ -1,5 +1,4 @@
-import { mkdir, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
+import { link, mkdir, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -256,20 +255,10 @@ function processIsAlive(pid) {
 
 function processIdentity(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return null;
-  if (process.platform === 'linux') {
-    try {
-      const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
-      const commandEnd = stat.lastIndexOf(')');
-      const fields = stat.slice(commandEnd + 2).trim().split(/\s+/);
-      const startTicks = fields[19];
-      if (commandEnd >= 0 && /^\d+$/.test(startTicks || '')) return `linux:${startTicks}`;
-    } catch (error) {
-      if (error.code === 'ENOENT' || error.code === 'ESRCH') return null;
-    }
-  }
   try {
     const started = execFileSync('/bin/ps', ['-o', 'lstart=', '-p', String(pid)], {
       encoding: 'utf8',
+      env: { ...process.env, LANG: 'C', LC_ALL: 'C' },
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
     return started ? `${process.platform}:${started}` : null;
@@ -302,6 +291,8 @@ export class WordstatUsageLedger {
         const now = this.now();
         const state = await this.#read();
         state.requests = state.requests.filter((item) => item.at > now - HOUR_MS);
+        state.nextAllowedAt = state.nextAllowedAt > now ? state.nextAllowedAt : 0;
+        waitMs = Math.max(waitMs, state.nextAllowedAt - now);
         const recent = state.requests.filter((item) => item.at > now - SECOND_MS);
         if (recent.length >= 10) {
           waitMs = Math.max(waitMs, recent[0].at + SECOND_MS - now + 1);
@@ -343,15 +334,20 @@ export class WordstatUsageLedger {
     const selfIdentity = this.getProcessIdentity(process.pid);
     if (!selfIdentity) throw new Error('Не удалось определить идентичность процесса для блокировки квоты Wordstat');
     for (;;) {
+      const candidatePath = `${this.lockPath}.candidate-${process.pid}-${Math.random().toString(16).slice(2)}`;
       let handle;
       try {
-        handle = await open(this.lockPath, 'wx', 0o600);
+        handle = await open(candidatePath, 'wx', 0o600);
         await handle.writeFile(`${JSON.stringify({ version: 2, pid: process.pid, processIdentity: selfIdentity, acquiredAt: new Date().toISOString() })}\n`);
         await handle.sync();
         await handle.close();
+        handle = undefined;
+        await link(candidatePath, this.lockPath);
+        await rm(candidatePath, { force: true });
         return;
       } catch (error) {
         await handle?.close().catch(() => {});
+        await rm(candidatePath, { force: true });
         if (error.code !== 'EEXIST') throw error;
         let owner;
         try {
@@ -391,10 +387,20 @@ export class WordstatUsageLedger {
   async #read() {
     try {
       const parsed = JSON.parse(await readFile(this.statePath, 'utf8'));
-      return Array.isArray(parsed.requests) ? parsed : { version: 1, requests: [] };
+      const validRequest = (item) => item && typeof item === 'object'
+        && Number.isFinite(item.at)
+        && typeof item.endpoint === 'string'
+        && typeof item.billed === 'boolean'
+        && Number.isFinite(item.costUnits);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)
+          || parsed.version !== 2 || !Array.isArray(parsed.requests)
+          || !parsed.requests.every(validRequest) || !Number.isFinite(parsed.nextAllowedAt)) {
+        throw new Error('неверная схема состояния');
+      }
+      return parsed;
     } catch (error) {
-      if (error.code === 'ENOENT') return { version: 1, requests: [] };
-      throw error;
+      if (error.code === 'ENOENT') return { version: 2, requests: [], nextAllowedAt: 0 };
+      throw new Error(`Состояние квоты Wordstat повреждено: ${error.message}`);
     }
   }
 

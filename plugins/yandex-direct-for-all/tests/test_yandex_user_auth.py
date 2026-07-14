@@ -56,7 +56,9 @@ class YandexUserAuthTests(unittest.TestCase):
 
     def test_direct_and_metrika_defaults_use_pkce_without_secret(self) -> None:
         with tempfile.TemporaryDirectory() as root, mock.patch.dict(os.environ, {}, clear=True):
-            direct = auth.resolve_config(self.parse("--service", "direct", "--auth-root", root))
+            direct = auth.resolve_config(self.parse(
+                "--service", "direct", "--auth-root", root, "--client-login", "example-advertiser"
+            ))
             metrika = auth.resolve_config(self.parse("--service", "metrika", "--auth-root", root))
         self.assertEqual(direct.profile_name, "legacy_direct")
         self.assertEqual(direct.mode, "local-callback")
@@ -78,9 +80,16 @@ class YandexUserAuthTests(unittest.TestCase):
             )
             os.chmod(config_path, 0o600)
             with mock.patch.dict(os.environ, {"YANDEX_OAUTH_CONFIG_FILE": str(config_path)}, clear=True):
-                config = auth.resolve_config(self.parse("--service", "direct", "--auth-root", root))
+                config = auth.resolve_config(self.parse(
+                    "--service", "direct", "--auth-root", root, "--client-login", "example-advertiser"
+                ))
             self.assertEqual(config.profile_name, "custom")
             self.assertEqual(config.client_id, "custom-public-id")
+
+    def test_direct_authorization_requires_explicit_client_login(self) -> None:
+        with tempfile.TemporaryDirectory() as root, mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaisesRegex(ValueError, "client-login"):
+                auth.resolve_config(self.parse("--service", "direct", "--auth-root", root))
 
     def test_code_input_is_hidden_and_not_printed(self) -> None:
         fake_stdin = mock.Mock()
@@ -156,7 +165,7 @@ class YandexUserAuthTests(unittest.TestCase):
             self.assertNotIn("synthetic-token", saved)
             self.assertNotIn(expected, saved)
 
-    def test_direct_advertiser_preflight_reads_as_token_owner_without_client_login(self) -> None:
+    def test_direct_preflight_rejects_missing_client_login_before_network(self) -> None:
         with tempfile.TemporaryDirectory() as root:
             auth_root = Path(root)
             common.ensure_private_dir(auth_root)
@@ -165,18 +174,13 @@ class YandexUserAuthTests(unittest.TestCase):
                 {"access_token": "synthetic-token", "oauth_client_id": "expected-app"},
             )
             args = preflight.build_parser().parse_args(["--service", "direct", "--auth-root", root])
-            with mock.patch.object(
-                preflight.requests, "get", return_value=Response(200, {"client_id": "expected-app"})
-            ), mock.patch.object(
-                preflight.requests,
-                "post",
-                return_value=Response(200, {"result": {"Campaigns": []}}),
+            with mock.patch.object(preflight.requests, "get") as identity_call, mock.patch.object(
+                preflight.requests, "post"
             ) as service_call:
-                result, _ = preflight.run_check(args)
-            self.assertEqual(result["verdict"], "ready")
-            self.assertEqual(result["direct_scope"], "token_owner")
-            headers = service_call.call_args.kwargs["headers"]
-            self.assertNotIn("Client-Login", headers)
+                with self.assertRaisesRegex(ValueError, "client-login"):
+                    preflight.run_check(args)
+            identity_call.assert_not_called()
+            service_call.assert_not_called()
 
     def test_direct_agency_preflight_sends_client_login(self) -> None:
         with tempfile.TemporaryDirectory() as root:
@@ -197,7 +201,7 @@ class YandexUserAuthTests(unittest.TestCase):
                 return_value=Response(200, {"result": {"Campaigns": []}}),
             ) as service_call:
                 result, _ = preflight.run_check(args)
-            self.assertEqual(result["direct_scope"], "agency_client")
+            self.assertEqual(result["direct_scope"], "explicit_client")
             self.assertEqual(service_call.call_args.kwargs["headers"]["Client-Login"], "example-client")
 
     def test_client_id_mismatch_blocks_service_read(self) -> None:

@@ -97,7 +97,14 @@ class CollectorTests(unittest.TestCase):
             state_path = Path(tmp) / "limits.json"
             pacer = cloud.QuotaPacer(state_path)
             state_path.write_text(
-                json.dumps({"requestTimes": [900.0] * 100, "billedTimes": [], "nextAllowedAt": 0.0}),
+                json.dumps({
+                    "version": 2,
+                    "requests": [
+                        {"at": 900_000.0, "endpoint": "test", "billed": False, "costUnits": 0}
+                        for _ in range(100)
+                    ],
+                    "nextAllowedAt": 0,
+                }),
                 encoding="utf-8",
             )
             os.chmod(state_path, 0o600)
@@ -107,8 +114,9 @@ class CollectorTests(unittest.TestCase):
                 pacer.before_request(billed=False)
             sleeper.assert_called_once_with(3500.0)
             saved = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertEqual(len(saved["requestTimes"]), 1)
-            self.assertEqual(saved["billedTimes"], [])
+            self.assertEqual(len(saved["requests"]), 1)
+            self.assertFalse(saved["requests"][0]["billed"])
+            self.assertFalse(state_path.with_suffix(".json.lock").exists())
 
     def test_corrupt_quota_state_fails_closed_without_replacing_history(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -123,6 +131,18 @@ class CollectorTests(unittest.TestCase):
                 pacer.before_request(billed=False)
             sleeper.assert_not_called()
             self.assertEqual(state_path.read_bytes(), original)
+
+    def test_wrong_shape_quota_state_fails_closed_without_replacing_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            state_path = Path(tmp) / "limits.json"
+            original = b'{"requestTimes": [], "billedTimes": [], "nextAllowedAt": 0}\n'
+            state_path.write_bytes(original)
+            os.chmod(state_path, 0o600)
+            pacer = cloud.QuotaPacer(state_path)
+            with self.assertRaisesRegex(RuntimeError, "Состояние квоты Wordstat повреждено"):
+                pacer.before_request(billed=False)
+            self.assertEqual(state_path.read_bytes(), original)
+            self.assertFalse(state_path.with_suffix(".json.lock").exists())
 
     def test_full_run_and_resume_without_duplicates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

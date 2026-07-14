@@ -1,7 +1,7 @@
 # Запуски без утечки доступов
 
 ```bash
-./scripts/start_yandex_user_auth.sh --service direct
+./scripts/start_yandex_user_auth.sh --service direct --client-login 'логин-рекламодателя'
 ./scripts/start_yandex_user_auth.sh --service metrika
 ./scripts/exchange_yandex_user_code.sh --service metrika
 ```
@@ -13,12 +13,14 @@
 ```json
 {
   "environment": "production",
-  "token_file": ".codex/auth/direct_oauth_token.json"
+  "token_file": ".codex/auth/direct_oauth_token.json",
+  "client_login": "логин-рекламодателя"
 }
 ```
 
-Прямой рекламодатель не добавляет `client_login`. Представитель агентства
-добавляет `"client_login": "логин-клиента-рекламодателя"`.
+Прямой рекламодатель указывает в `client_login` собственный логин. Представитель
+агентства указывает логин клиента-рекламодателя. Без явной области чтение
+отклоняется до обращения к сети.
 
 Задайте файлу права `0600`, затем проверьте его:
 

@@ -10,11 +10,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import requests
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+
+import portable_http as requests  # noqa: E402
 
 from yandex_auth_common import (  # noqa: E402
     DEFAULT_SERVICE_PROFILE,
@@ -88,13 +88,14 @@ def yandex_id_client_id(token: str) -> str:
 
 
 def direct_read(token: str, client_login: str, max_items: int) -> dict[str, Any]:
+    if not client_login.strip():
+        raise ValueError("Для проверки Директа обязателен логин рекламодателя или клиента агентства.")
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept-Language": "ru",
         "Content-Type": "application/json; charset=utf-8",
+        "Client-Login": client_login.strip(),
     }
-    if client_login:
-        headers["Client-Login"] = client_login
     response = requests.post(
         DIRECT_URL,
         headers=headers,
@@ -156,6 +157,8 @@ def audience_read(token: str, segment_name: str, max_items: int) -> dict[str, An
 
 
 def run_check(args: argparse.Namespace) -> tuple[dict[str, Any], Path]:
+    if args.service == "direct" and not args.client_login.strip():
+        raise ValueError("Для проверки Директа обязателен --client-login.")
     auth_root, _ = resolve_auth_root(args.auth_root)
     token, expected_client_id, token_source = resolve_token(args, auth_root)
     actual_client_id = yandex_id_client_id(token)
@@ -174,7 +177,7 @@ def run_check(args: argparse.Namespace) -> tuple[dict[str, Any], Path]:
         "read": read,
     }
     if args.service == "direct":
-        result["direct_scope"] = "agency_client" if args.client_login else "token_owner"
+        result["direct_scope"] = "explicit_client"
     output = Path(args.output).expanduser().resolve() if args.output else preflight_path(auth_root, args.service)
     write_json(output, result)
     return result, output

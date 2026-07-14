@@ -58,6 +58,8 @@ def resolve_runtime() -> tuple[str, str, str, Path]:
     if not token:
         raise ValueError(f"Для среды {environment} не задан отдельный токен чтения.")
     login = os.environ.get("YANDEX_DIRECT_CLIENT_LOGIN", "").strip()
+    if not login:
+        raise ValueError("Не задан YANDEX_DIRECT_CLIENT_LOGIN: чтение без явной области клиента запрещено.")
     output = Path(
         os.environ.get(
             "YANDEX_DIRECT_OUTPUT_DIR",
@@ -78,10 +80,15 @@ def safe_headers(token: str, login: str, reports: bool) -> dict[str, str]:
         "Accept-Language": "ru",
         "Content-Type": "application/json; charset=utf-8",
     }
-    if login:
-        headers["Client-Login"] = login
+    headers["Client-Login"] = login
     if reports:
-        headers["processingMode"] = "auto"
+        headers.update({
+            "processingMode": "auto",
+            "returnMoneyInMicros": "false",
+            "skipReportHeader": "true",
+            "skipColumnHeader": "false",
+            "skipReportSummary": "true",
+        })
     return headers
 
 
@@ -178,8 +185,18 @@ async def execute_read(
 
         request_id = header(response, "RequestId")
         if status == 200:
-            artifact = output / f"_api_reports_{request_sha256}.tsv"
             content = response_content(response)
+            if not content:
+                state = {
+                    "status": "error",
+                    "request_sha256": request_sha256,
+                    "request_id": request_id,
+                    "http_status": status,
+                    "error": "empty_report",
+                }
+                atomic_json(state_path, state)
+                return state
+            artifact = output / f"_api_reports_{request_sha256}.tsv"
             atomic_bytes(artifact, content)
             state = {
                 "status": "ready",

@@ -113,6 +113,10 @@ class ReadOnlyServerTests(unittest.TestCase):
             self.assertEqual(headers["Accept-Language"], "ru")
             self.assertEqual(headers["Content-Type"], "application/json; charset=utf-8")
             self.assertEqual(headers["Client-Login"], "example-client")
+            self.assertEqual(headers["returnMoneyInMicros"], "false")
+            self.assertEqual(headers["skipReportHeader"], "true")
+            self.assertEqual(headers["skipColumnHeader"], "false")
+            self.assertEqual(headers["skipReportSummary"], "true")
             bodies.append(body)
             return responses.pop(0)
 
@@ -150,6 +154,46 @@ class ReadOnlyServerTests(unittest.TestCase):
         self.assertEqual(bodies[1], bodies[2])
         self.assertEqual(json.loads(bodies[0]), {"params": {"FieldNames": ["CampaignName", "Clicks"]}})
 
+    def test_reports_reject_empty_success_without_retrying(self) -> None:
+        calls = []
+
+        async def request(_url, _headers, _body):
+            calls.append(True)
+            return FakeResponse(200, content=b"", headers={"RequestId": "request-empty"})
+
+        async def run():
+            with tempfile.TemporaryDirectory() as root, mock.patch.dict(
+                os.environ, self.runtime(root), clear=True
+            ):
+                result = await server.execute_read(
+                    "reports", "get", {"ReportName": "empty"}, request=request
+                )
+                self.assertEqual(result["status"], "error")
+                self.assertEqual(result["error"], "empty_report")
+                saved = json.loads(next(Path(root).glob("*.state.json")).read_text(encoding="utf-8"))
+                self.assertEqual(saved["status"], "error")
+
+        asyncio.run(run())
+        self.assertEqual(len(calls), 1)
+
+        with tempfile.TemporaryDirectory() as root:
+            helper_calls = []
+
+            def requester(_url, _headers, _body):
+                helper_calls.append(True)
+                return 200, b"", {"RequestId": "helper-empty"}
+
+            helper_result = access_layer.fetch_direct_report(
+                access_layer.DirectAccess("token", "example-client", "sandbox"),
+                {"ReportName": "empty"},
+                Path(root),
+                requester=requester,
+                sleeper=lambda _seconds: self.fail("empty HTTP 200 must not be retried"),
+            )
+            self.assertEqual(helper_result["status"], "error")
+            self.assertEqual(helper_result["error"], "empty_report")
+            self.assertEqual(len(helper_calls), 1)
+
     def test_environment_tokens_are_not_interchangeable(self) -> None:
         async def request(url, headers, body):
             return FakeResponse(200, payload={"result": {}})
@@ -168,18 +212,24 @@ class ReadOnlyServerTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         await server.execute_read("campaigns", "get", {}, request=request)
 
-                token_owner = self.runtime(root)
-                token_owner.pop("YANDEX_DIRECT_CLIENT_LOGIN")
-                seen_headers = {}
+                missing_scope = self.runtime(root)
+                missing_scope.pop("YANDEX_DIRECT_CLIENT_LOGIN")
+                calls = []
 
-                async def owner_request(url, headers, body):
-                    seen_headers.update(headers)
-                    return FakeResponse(200, payload={"result": {"Campaigns": []}})
+                async def owner_request(*args):
+                    calls.append(args)
+                    raise AssertionError("network must not be called without client scope")
 
-                with mock.patch.dict(os.environ, token_owner, clear=True):
-                    result = await server.execute_read("campaigns", "get", {}, request=owner_request)
-                self.assertEqual(result["status"], "ready")
-                self.assertNotIn("Client-Login", seen_headers)
+                with mock.patch.dict(os.environ, missing_scope, clear=True), self.assertRaisesRegex(
+                    ValueError, "явной области клиента"
+                ):
+                    await server.execute_read("campaigns", "get", {}, request=owner_request)
+                self.assertEqual(calls, [])
+
+                with self.assertRaisesRegex(access_layer.AccessError, "явной области клиента"):
+                    access_layer.direct_api_get(
+                        access_layer.DirectAccess("token", "", "sandbox"), "campaigns", {}
+                    )
 
         asyncio.run(run())
 

@@ -43,7 +43,7 @@ step "Закреплённая сборка сервера поиска"
   UV_PROJECT_ENVIRONMENT="$TEMP_ROOT/search-venv" uv run --frozen python -c 'import server; assert callable(server.main)'
 )
 
-python3 - <<'PY'
+"$TEMP_ROOT/search-venv/bin/python" - <<'PY'
 import hashlib
 import importlib.util
 import json

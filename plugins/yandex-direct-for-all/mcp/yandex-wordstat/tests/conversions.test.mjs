@@ -253,6 +253,43 @@ describe('persistent Wordstat usage ledger', () => {
     expect(snapshot.billedLastHour).toBe(0);
   });
 
+  test('accepts the shared version-2 state written by the Python collector', async () => {
+    const statePath = await quotaFixture();
+    await writeFile(statePath, `${JSON.stringify({
+      version: 2,
+      requests: [{ at: 50_000, endpoint: 'wordstat-cloud-collector', billed: false, costUnits: 0 }],
+      nextAllowedAt: 0,
+    })}\n`, { mode: 0o600 });
+    const ledger = new WordstatUsageLedger({ statePath, now: () => 50_100 });
+    await ledger.reserve({ endpoint: '/v2/wordstat/topRequests', billed: true });
+    expect((await ledger.snapshot()).requestsLastHour).toBe(2);
+  });
+
+  test('rejects valid JSON with a foreign state shape without rewriting it', async () => {
+    const statePath = await quotaFixture();
+    const original = '{"requestTimes":[],"billedTimes":[],"nextAllowedAt":0}\n';
+    await writeFile(statePath, original, { mode: 0o600 });
+    const ledger = new WordstatUsageLedger({ statePath });
+    await expect(ledger.reserve({ endpoint: '/v2/wordstat/topRequests', billed: true })).rejects.toThrow(
+      'Состояние квоты Wordstat повреждено',
+    );
+    expect(await readFile(statePath, 'utf8')).toBe(original);
+  });
+
+  test('honours a Retry-After deadline written by the Python collector', async () => {
+    const statePath = await quotaFixture();
+    await writeFile(statePath, `${JSON.stringify({ version: 2, requests: [], nextAllowedAt: 12_000 })}\n`, { mode: 0o600 });
+    let now = 10_000;
+    const waits = [];
+    const ledger = new WordstatUsageLedger({
+      statePath,
+      now: () => now,
+      sleep: async (ms) => { waits.push(ms); now += ms; },
+    });
+    await ledger.reserve({ endpoint: '/v2/wordstat/topRequests', billed: true });
+    expect(waits).toEqual([2000]);
+  });
+
   test('recovers an owner-recorded lock left by a dead process', async () => {
     const statePath = await quotaFixture();
     await writeFile(`${statePath}.lock`, `${JSON.stringify({ version: 2, pid: 999999, processIdentity: 'dead:1', acquiredAt: '2026-07-14T00:00:00Z' })}\n`, { mode: 0o600 });

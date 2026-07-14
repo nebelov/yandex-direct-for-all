@@ -153,6 +153,8 @@ def load_direct_access(access_file: str | None = None) -> DirectAccess:
         raise AccessError(f"Для выбранной среды отсутствует {expected_env}")
 
     client_login = str(config.get("client_login") or os.environ.get("YANDEX_DIRECT_CLIENT_LOGIN") or "").strip()
+    if not client_login:
+        raise AccessError("Не задан client_login или YANDEX_DIRECT_CLIENT_LOGIN: чтение без явной области клиента запрещено")
     return DirectAccess(token=token, client_login=client_login, environment=environment)
 
 
@@ -238,6 +240,8 @@ def fetch_direct_report(
     sleeper: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
     """Получить Reports API с сохраняемым договором запроса, очереди и результата."""
+    if not access.client_login.strip():
+        raise AccessError("Reports API запрещён без явной области клиента")
     body = _canonical_bytes({"params": params})
     request_sha256 = hashlib.sha256(body).hexdigest()
     output_dir = output_dir.expanduser().resolve()
@@ -256,8 +260,7 @@ def fetch_direct_report(
         "skipColumnHeader": "false",
         "skipReportSummary": "true",
     }
-    if access.client_login:
-        headers["Client-Login"] = access.client_login
+    headers["Client-Login"] = access.client_login
     url = f"https://{host}/json/v5/reports"
     while True:
         try:
@@ -285,7 +288,18 @@ def fetch_direct_report(
             }
             atomic_write_json(state_path, state)
             return state
-        if status in {200, 201, 202}:
+        if status == 200:
+            state = {
+                "status": "error",
+                "request_sha256": request_sha256,
+                "request_artifact": request_path.name,
+                "request_id": request_id,
+                "http_status": status,
+                "error": "empty_report",
+            }
+            atomic_write_json(state_path, state)
+            return state
+        if status in {201, 202}:
             retry_raw = _header(response_headers, "retryIn", "1")
             try:
                 retry_in = max(float(retry_raw), 0.0)
@@ -322,6 +336,8 @@ def direct_api_get(
     version: str = "v5",
 ) -> dict[str, Any]:
     service = service.lower()
+    if not access.client_login.strip():
+        raise AccessError("Чтение Директа запрещено без явной области клиента")
     if service not in DIRECT_SERVICES or version not in DIRECT_VERSIONS:
         raise AccessError("Запрошен неподдерживаемый маршрут чтения Директа")
     host = "api-sandbox.direct.yandex.com" if access.environment == "sandbox" else "api.direct.yandex.com"
@@ -331,8 +347,7 @@ def direct_api_get(
         "Accept-Language": "ru",
         "Content-Type": "application/json; charset=utf-8",
     }
-    if access.client_login:
-        headers["Client-Login"] = access.client_login
+    headers["Client-Login"] = access.client_login
     request = urllib.request.Request(
         f"https://{host}/json/{version}/{service}",
         data=body,

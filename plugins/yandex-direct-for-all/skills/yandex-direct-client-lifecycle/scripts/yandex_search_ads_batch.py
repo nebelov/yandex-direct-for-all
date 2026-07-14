@@ -7,18 +7,30 @@ import argparse
 import base64
 import csv
 import json
+import os
 import re
 import stat
+import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from html import unescape
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-import requests
-from lxml import html
+for candidate in (
+    Path(__file__).resolve().parents[3] / "scripts",
+    Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "plugins/yandex-direct-for-all/scripts",
+    Path(os.environ.get("CLAUDE_HOME", Path.home() / ".claude")) / "plugins/yandex-direct-for-all/scripts",
+):
+    if (candidate / "portable_http.py").is_file():
+        sys.path.insert(0, str(candidate))
+        break
+else:
+    raise RuntimeError("Не найден переносимый HTTP-слой yandex-direct-for-all")
+
+import portable_http as requests  # noqa: E402
 
 
 DEFAULT_ENDPOINT = "https://searchapi.api.cloud.yandex.net/v2/web/search"
@@ -70,6 +82,62 @@ MANIFEST_HEADER = [
 TOKEN_CLEANUP_RE = re.compile(r'^[+!"]+|[+!"]+$')
 SPACE_RE = re.compile(r"\s+")
 META_VALUE_RE = re.compile(r"^(snippetUrl|countUrl)$")
+
+
+@dataclass
+class HtmlNode:
+    tag: str
+    attributes: dict[str, str]
+    children: list[HtmlNode | str]
+
+    def descendants(self) -> list[HtmlNode]:
+        result: list[HtmlNode] = []
+        for child in self.children:
+            if isinstance(child, HtmlNode):
+                result.append(child)
+                result.extend(child.descendants())
+        return result
+
+    def text_content(self) -> str:
+        return "".join(child.text_content() if isinstance(child, HtmlNode) else child for child in self.children)
+
+    def has_class(self, name: str, *, exact_token: bool = False) -> bool:
+        value = self.attributes.get("class", "")
+        return name in value.split() if exact_token else name in value
+
+
+class HtmlTreeBuilder(HTMLParser):
+    VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.root = HtmlNode("document", {}, [])
+        self.stack = [self.root]
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        node = HtmlNode(tag, {key: value or "" for key, value in attrs}, [])
+        self.stack[-1].children.append(node)
+        if tag.lower() not in self.VOID_TAGS:
+            self.stack.append(node)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.stack[-1].children.append(HtmlNode(tag, {key: value or "" for key, value in attrs}, []))
+
+    def handle_endtag(self, tag: str) -> None:
+        for index in range(len(self.stack) - 1, 0, -1):
+            if self.stack[index].tag.lower() == tag.lower():
+                del self.stack[index:]
+                return
+
+    def handle_data(self, data: str) -> None:
+        self.stack[-1].children.append(data)
+
+
+def parse_html(html_text: str) -> HtmlNode:
+    parser = HtmlTreeBuilder()
+    parser.feed(html_text)
+    parser.close()
+    return parser.root
 
 
 def now_iso() -> str:
@@ -195,9 +263,12 @@ def decode_raw_data(raw_data: str) -> str:
     return base64.b64decode(raw_data).decode("utf-8", errors="ignore")
 
 
-def collect_vnl_objects(item: Any) -> list[dict[str, Any]]:
+def collect_vnl_objects(item: HtmlNode) -> list[dict[str, Any]]:
     collected: list[dict[str, Any]] = []
-    for raw in item.xpath('.//*[@data-vnl]/@data-vnl'):
+    for node in item.descendants():
+        raw = node.attributes.get("data-vnl")
+        if raw is None:
+            continue
         try:
             payload = json.loads(raw)
         except Exception:
@@ -224,7 +295,7 @@ def extract_feedback_meta(feedback: dict[str, Any]) -> dict[str, str]:
     return result
 
 
-def extract_ad_meta(item: Any) -> dict[str, str]:
+def extract_ad_meta(item: HtmlNode) -> dict[str, str]:
     meta = {"feature": "", "snippet_url": "", "count_url": "", "header_title": ""}
     for payload in collect_vnl_objects(item):
         header = payload.get("headerProps")
@@ -251,23 +322,22 @@ def extract_ad_meta(item: Any) -> dict[str, str]:
     return meta
 
 
-def extract_title(item: Any, fallback: str) -> str:
-    parts = [" ".join(text.split()) for text in item.xpath('.//*[contains(@class, "OrganicTitle-Link")]//text()')]
+def extract_title(item: HtmlNode, fallback: str) -> str:
+    parts = [" ".join(node.text_content().split()) for node in item.descendants() if node.has_class("OrganicTitle-Link")]
     title = " ".join(part for part in parts if part).strip()
     return title or fallback
 
 
-def extract_snippet(item: Any) -> str:
-    parts = [" ".join(text.split()) for text in item.xpath('.//*[contains(@class, "OrganicTextContentSpan")]//text()')]
+def extract_snippet(item: HtmlNode) -> str:
+    parts = [" ".join(node.text_content().split()) for node in item.descendants() if node.has_class("OrganicTextContentSpan")]
     snippet = " ".join(part for part in parts if part).strip()
     if snippet:
         return snippet
-    text_parts = [" ".join(text.split()) for text in item.xpath(".//text()")]
-    return " ".join(part for part in text_parts if part).strip()
+    return " ".join(item.text_content().split())
 
 
-def extract_href(item: Any, fallback: str) -> str:
-    hrefs = [str(value).strip() for value in item.xpath('.//*[contains(@class, "OrganicTitle-Link")]/@href') if str(value).strip()]
+def extract_href(item: HtmlNode, fallback: str) -> str:
+    hrefs = [node.attributes.get("href", "").strip() for node in item.descendants() if node.has_class("OrganicTitle-Link") and node.attributes.get("href", "").strip()]
     return hrefs[0] if hrefs else fallback
 
 
@@ -280,12 +350,14 @@ def extract_domain(href: str) -> str:
 
 
 def extract_search_ad_rows(html_text: str, job: Job, fetched_at: str, raw_json_path: Path, raw_html_path: Path) -> list[dict[str, Any]]:
-    document = html.fromstring(html_text)
+    document = parse_html(html_text)
     rows: list[dict[str, Any]] = []
     ad_position = 0
     serp_position = 0
-    for item in document.xpath('//*[contains(concat(" ", normalize-space(@class), " "), " serp-item ")]'):
-        classes = str(item.get("class") or "").strip()
+    for item in document.descendants():
+        if not item.has_class("serp-item", exact_token=True):
+            continue
+        classes = item.attributes.get("class", "").strip()
         if "RsyaGuarantee" in classes:
             continue
         title = extract_title(item, "")
