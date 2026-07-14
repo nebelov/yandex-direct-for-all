@@ -86,7 +86,7 @@ def campaign_metrics_map(rows: list[dict[str, str]]) -> dict[str, dict[str, str]
 
 def build_new_group_candidates(agg: dict[tuple[str, str, str], dict[str, Any]]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    micro_candidates = [item for item in agg.values() if item["route_label"] == "микроплинтус"]
+    micro_candidates = [item for item in agg.values() if item["route_label"] == "сегмент-а"]
     micro_candidates.sort(key=lambda item: (item["clicks"], item["cost"], item["impressions"]), reverse=True)
     if micro_candidates:
         best = micro_candidates[0]
@@ -95,21 +95,21 @@ def build_new_group_candidates(agg: dict[tuple[str, str, str], dict[str, Any]]) 
                 "target_campaign_id": best["campaign_id"],
                 "target_campaign_name": best["campaign_name"],
                 "action_layer": "exact_phrase_group",
-                "cluster": "микроплинтус",
-                "proposed_target": "new adgroup `микроплинтус` with exact and phrase set",
+                "cluster": "сегмент-а",
+                "proposed_target": "new adgroup `сегмент-а` with exact and phrase set",
                 "why": (
                     f"15d route already leaks through current traffic: {best['impressions']} imp / "
                     f"{best['clicks']:.0f} clicks / {best['cost']:.2f} cost across {len(best['ad_groups'])} adgroups."
                 ),
                 "priority": "high",
                 "confidence": "high",
-                "expected_effect": "cleaner routing and отдельный CPL verdict по микроплинтусу",
+                "expected_effect": "cleaner routing and отдельный CPL verdict по сегмент-ау",
                 "risk": "overlap with current hidden-plinth routes unless negatives are synced",
                 "status": "pre_apply_candidate",
             }
         )
 
-    seam_candidates = [item for item in agg.values() if item["route_label"] == "теневой зазор / теневой шов"]
+    seam_candidates = [item for item in agg.values() if item["route_label"] == "сегмент-б"]
     seam_candidates.sort(key=lambda item: (item["clicks"], item["cost"], item["impressions"]), reverse=True)
     if seam_candidates:
         best = seam_candidates[0]
@@ -118,7 +118,7 @@ def build_new_group_candidates(agg: dict[tuple[str, str, str], dict[str, Any]]) 
                 "target_campaign_id": best["campaign_id"],
                 "target_campaign_name": best["campaign_name"],
                 "action_layer": "exact_test_group",
-                "cluster": "теневой зазор + теневой шов",
+                "cluster": "сегмент-б",
                 "proposed_target": "new limited-budget exact test group with hard negatives",
                 "why": (
                     f"15d solution-intent already visible: {best['impressions']} imp / "
@@ -143,8 +143,8 @@ def build_growth_review_md(
     scorecard_map: dict[str, dict[str, str]],
 ) -> str:
     hidden_doors_rows = [item for item in agg.values() if item["route_label"] == "скрытые двери"]
-    micro_rows = [item for item in agg.values() if item["route_label"] == "микроплинтус"]
-    seam_rows = [item for item in agg.values() if item["route_label"] == "теневой зазор / теневой шов"]
+    micro_rows = [item for item in agg.values() if item["route_label"] == "сегмент-а"]
+    seam_rows = [item for item in agg.values() if item["route_label"] == "сегмент-б"]
 
     lines = [
         "# Missing Phrases Growth Review",
@@ -171,7 +171,7 @@ def build_growth_review_md(
             [
                 "## Высокая уверенность",
                 "",
-                "### `микроплинтус`",
+                "### `сегмент-а`",
                 "",
                 f"- 15d best route: `{best['campaign_id']} / {best['campaign_name']}`",
                 f"- сигнал: `{best['impressions']}` imp / `{best['clicks']:.0f}` clicks / `{best['cost']:.2f}` cost",
@@ -188,7 +188,7 @@ def build_growth_review_md(
 
     if hidden_doors_rows:
         best = sorted(hidden_doors_rows, key=lambda item: (item["clicks"], item["cost"]), reverse=True)[0]
-        carrier = scorecard_map.get("91494443", {})
+        carrier = scorecard_map.get("10000001", {})
         lines.extend(
             [
                 "### `скрытые двери`",
@@ -196,7 +196,7 @@ def build_growth_review_md(
                 f"- strongest route: `{best['campaign_id']} / {best['campaign_name']}`",
                 f"- сигнал: `{best['impressions']}` imp / `{best['clicks']:.0f}` clicks / `{best['cost']:.2f}` cost",
                 (
-                    f"- current explicit carrier: `91494443 / {carrier.get('campaign_name', 'Поиск/Типы и двери/СПб+РФ')}` | "
+                    f"- current explicit carrier: `10000001 / {carrier.get('campaign_name', 'Поиск/Пример')}` | "
                     f"`{parse_float(carrier.get('clicks')):.0f}` clicks / `{parse_float(carrier.get('cost')):.2f}` cost / "
                     f"`{parse_float(carrier.get('direct_conversions')):g}` direct conv / `{parse_float(carrier.get('direct_cpa')):.2f}` CPA"
                     if carrier
@@ -218,7 +218,7 @@ def build_growth_review_md(
             [
                 "## Средняя уверенность",
                 "",
-                "### `теневой зазор` и `теневой шов`",
+                "### `сегмент-б` и `сегмент-б`",
                 "",
                 f"- best current route: `{best['campaign_id']} / {best['campaign_name']}`",
                 f"- сигнал: `{best['impressions']}` imp / `{best['clicks']:.0f}` clicks / `{best['cost']:.2f}` cost",
@@ -333,7 +333,7 @@ def build_growth_pack_md(
         [
             "## Главный growth-вывод",
             "",
-            "1. Рост сейчас подтверждён через `микроплинтус` и через отдельный `теневой зазор / теневой шов` test-layer.",
+            "1. Рост сейчас подтверждён через `сегмент-а` и через отдельный `сегмент-б` test-layer.",
             "2. `скрытые двери` = protected growth-route, а не новая РК.",
             "3. Новые standalone search-кампании без отдельного offer/geo пока не подтверждены.",
             "",

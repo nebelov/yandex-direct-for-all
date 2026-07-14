@@ -1,126 +1,42 @@
-# Quickstart
+# Быстрый старт
 
-Этот файл нужен, если другой ИИ или оператор хочет быстро стартовать без чтения всего репозитория.
+## 1. Проверка
 
-## 0. Path Contract
+    bash plugins/yandex-direct-for-all/scripts/validate_bundle.sh
 
-- `<repo-root>` = корень этого репозитория
-- `<plugin-root>` = `<repo-root>/plugins/yandex-direct-for-all`
-- Основной путь для `Codex` = repo-local plugin через `<repo-root>/.agents/plugins/marketplace.json`
-- `install_codex_bundle.sh` = optional personal home-install в `${CODEX_HOME:-~/.codex}/plugins`
+## 2. Подключение
 
-## 1. Prerequisites
+Безопасный просмотр плана установки:
 
-- `python3` (`validated on 3.11`)
-- `node` (`validated on Node 20`)
-- `rsync`
-- Python package `requests`
-- браузер для OAuth
-- для `Direct` default path: свободный `localhost:8080`
+    bash plugins/yandex-direct-for-all/scripts/install_bundle.sh --target both
 
-## 2. Выбрать режим подключения
+Применение:
 
-- `Codex repo-local, recommended`:
-  - ничего не копировать;
-  - открыть repo так, чтобы `Codex` видел `<repo-root>/.agents/plugins/marketplace.json`;
-  - после clone/update repo перезапустить `Codex`.
-- `Codex personal home-install, optional`:
+    bash plugins/yandex-direct-for-all/scripts/install_bundle.sh --target both --apply
 
-```bash
-bash ./plugins/yandex-direct-for-all/scripts/install_codex_bundle.sh
-```
+Не удаляйте выданный RUN_ID, пока не проверите установленный набор. Установщик не меняет файл с пользовательскими правками.
 
-  - повторный запуск refresh-ит managed install in-place;
-  - `~/.agents/plugins/marketplace.json` переписывается на фактический installed plugin path.
+## 3. Авторизация Яндекс
 
-- `Claude compatibility copy, optional`:
+Для Директа и Метрики уже есть общие приложения. Создавать своё приложение не требуется:
 
-```bash
-bash ./plugins/yandex-direct-for-all/scripts/install_claude_bundle.sh
-```
+    bash plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service direct
+    bash plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service metrika
 
-## 3. Проверить bundle
+Директ по умолчанию использует профиль legacy_direct, Метрика — master_yandex. Коды и токены не передаются параметрами командной строки. Готовность подтверждается только обязательным чтением соответствующей службы.
 
-```bash
-bash ./plugins/yandex-direct-for-all/scripts/validate_bundle.sh
-```
+## 4. Wordstat v2
 
-Если validator не прошёл, дальше идти нельзя.
+Создайте вне хранилища файл с правами 600:
 
-## 4. Выбрать правильную auth-модель
+    {"api_key":"...","folder_id":"..."}
 
-- `Direct / Metrika / Audience` -> reusable OAuth app + per-user consent
-- `Wordstat / Search API` -> отдельный `Yandex Cloud` auth path
+Проверка настройки:
 
-Нельзя запускать `Wordstat` так, будто он авторизуется через тот же launcher, что и `Direct`.
+    plugins/yandex-direct-for-all/skills/yandex-performance-ops/scripts/wordstat_tool.sh preflight /защищённый/путь.json
 
-## 5. Получить user token для Direct
+Сбор:
 
-```bash
-bash ./plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service direct
-```
+    plugins/yandex-direct-for-all/scripts/collect_wordstat_wave.sh --masks-file masks.tsv --output-dir result --config /защищённый/путь.json
 
-Ожидаемый результат:
-
-- `./.codex/auth/direct_oauth_token.json`
-- `./.codex/auth/direct_oauth.env`
-- `./.codex/auth/direct_oauth_preflight.json`
-
-Если `*_preflight.json` не появился, auth-flow нельзя считать завершённым.
-
-`Direct` default path использует `http://localhost:8080/callback` и может открыть браузер.
-
-## 6. Получить user token для Metrika или Audience
-
-```bash
-bash ./plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service metrika
-bash ./plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service audience
-```
-
-## 7. Найти collector-скрипты
-
-Быстрый список:
-
-```bash
-bash ./plugins/yandex-direct-for-all/scripts/list_data_collectors.sh
-```
-
-Полный inventory:
-
-- `plugins/yandex-direct-for-all/docs/data-collection-scripts.md`
-
-## 8. Основные launchers
-
-- `plugins/yandex-direct-for-all/scripts/collect_wordstat_wave.sh`
-- `plugins/yandex-direct-for-all/scripts/collect_direct_bundle.sh`
-- `plugins/yandex-direct-for-all/scripts/collect_direct_sqr.sh`
-- `plugins/yandex-direct-for-all/scripts/collect_metrika.sh`
-- `plugins/yandex-direct-for-all/scripts/collect_roistat.sh`
-
-## 9. Где смотреть skills
-
-- Repo-local `Codex`, основной путь:
-  - `plugins/yandex-direct-for-all/skills/README.md`
-  - `plugins/yandex-direct-for-all/docs/skill-index.md`
-  - `plugins/yandex-direct-for-all/skills/yandex-performance-ops/SKILL.md`
-  - `plugins/yandex-direct-for-all/skills/yandex-direct-client-lifecycle/SKILL.md`
-  - `plugins/yandex-direct-for-all/skills/roistat-reports-api/SKILL.md`
-- Home-install, optional fallback:
-  - `~/.codex/plugins/yandex-direct-for-all/skills/yandex-performance-ops/SKILL.md`
-  - `~/.codex/plugins/yandex-direct-for-all/skills/yandex-direct-client-lifecycle/SKILL.md`
-  - `~/.codex/plugins/yandex-direct-for-all/skills/roistat-reports-api/SKILL.md`
-
-## 10. Чего не делать
-
-- Не коммитить `.env`, `oauth*.json`, `*token*.json`, `.codex/`, `.claude/`.
-- Не обещать, что `Wordstat` работает через `Direct` launcher.
-- Не смешивать токены разных пользователей и разных сервисов.
-- Не путать repo-local plugin и optional home-install.
-
-## 11. Что считать успехом первого запуска
-
-- bundle validator прошёл
-- выбранный режим подключения понятен и не смешан с другим
-- нужный auth launcher создал token-файл
-- нужный auth launcher создал preflight-файл
-- сервис реально виден в read-only preflight
+Wordstat и Yandex Search API используют ключ Yandex Cloud, а не пользовательскую авторизацию Директа.

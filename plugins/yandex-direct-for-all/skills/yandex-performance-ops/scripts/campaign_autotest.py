@@ -18,7 +18,7 @@
 
 Или из Codex:
   python3 <plugin-root>/skills/yandex-performance-ops/scripts/campaign_autotest.py \
-    --token "y0__xxx" --login "e-12345" --campaign-ids "707558165,707558664"
+    --token "y0__xxx" --login "example-login" --campaign-ids "10000001,10000002"
 """
 
 import argparse

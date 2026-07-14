@@ -4,9 +4,9 @@
 Management API + Reports API + Metrica API + Roistat API + помесячная динамика.
 
 Запуск:
-  python3 collect_all.py --token TOKEN --login LOGIN --campaign-id 91307551 --output-dir ./data/91307551
-  python3 collect_all.py --token TOKEN --login LOGIN --campaign-id 91307551 --output-dir ./data/91307551 --skip-roistat
-  python3 collect_all.py --token TOKEN --login LOGIN --campaign-id 91307551 --output-dir ./data/91307551 \
+  python3 collect_all.py --token TOKEN --login LOGIN --campaign-id 10000001 --output-dir ./data/example-campaign
+  python3 collect_all.py --token TOKEN --login LOGIN --campaign-id 10000001 --output-dir ./data/example-campaign --skip-roistat
+  python3 collect_all.py --token TOKEN --login LOGIN --campaign-id 10000001 --output-dir ./data/example-campaign \
     --roistat-key YOUR_KEY --roistat-project YOUR_PROJECT
 
 Результат: JSON + TSV файлы в output-dir (30+ файлов).

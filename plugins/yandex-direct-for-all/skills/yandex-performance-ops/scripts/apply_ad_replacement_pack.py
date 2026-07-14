@@ -148,12 +148,12 @@ def derive_title2(entry, new_ad):
         ]
     ).lower()
     candidates = [
-        (r"(tip7|штор|карниз)", "Карниз для штор"),
-        (r"(tip8|откос|двер)", "Откосы и двери"),
-        (r"(tip5|раздел)", "Разделительный профиль"),
+        (r"(tip7|штор|карниз)", "Категория А"),
+        (r"(tip8|откос|двер)", "Категория Б"),
+        (r"(tip5|раздел)", "Категория В"),
         (r"(tip2|панел|керамогран)", "Для панелей"),
-        (r"(tip1|стен)", "Стеновой профиль"),
-        (r"(плинтус)", "Скрытый плинтус"),
+        (r"(tip1|стен)", "Категория Г"),
+        (r"(плинтус)", "Категория Д"),
     ]
     for pattern, label in candidates:
         if re.search(pattern, text):
@@ -161,7 +161,7 @@ def derive_title2(entry, new_ad):
     markers = [str(marker or "").strip() for marker in entry.get("product_markers") or [] if str(marker or "").strip()]
     if markers:
         return trim_text(markers[0], 30)
-    return "Теневой профиль"
+    return "Пример товара"
 
 
 def build_payload(entry):

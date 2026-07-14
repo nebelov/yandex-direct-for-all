@@ -16,6 +16,8 @@ require_dir() {
 
 require_dir "$PLUGIN_DIR/skills/yandex-performance-ops"
 require_dir "$PLUGIN_DIR/skills/yandex-direct-client-lifecycle"
+require_dir "$PLUGIN_DIR/skills/yandex-direct-unified"
+require_dir "$PLUGIN_DIR/skills/yandex-wordstat"
 require_dir "$PLUGIN_DIR/skills/roistat-reports-api"
 require_dir "$PLUGIN_DIR/skills/amocrm-api-control"
 
@@ -39,6 +41,8 @@ require_file "$PLUGIN_DIR/examples/yandex.env.example"
 require_file "$PLUGIN_DIR/config/yandex_oauth_public_profiles.json"
 require_file "$PLUGIN_DIR/scripts/install_codex_bundle.sh"
 require_file "$PLUGIN_DIR/scripts/install_claude_bundle.sh"
+require_file "$PLUGIN_DIR/scripts/install_bundle.sh"
+require_file "$PLUGIN_DIR/tests/test_install_bundle.sh"
 require_file "$PLUGIN_DIR/scripts/list_data_collectors.sh"
 require_file "$PLUGIN_DIR/scripts/collect_wordstat_wave.sh"
 require_file "$PLUGIN_DIR/scripts/collect_direct_bundle.sh"
@@ -152,6 +156,18 @@ for path in [
 ]:
     ast.parse(path.read_text(encoding="utf-8"))
 PY
-node --check "$PLUGIN_DIR/mcp/yandex-wordstat/dist/index.js" >/dev/null
+node --check "$PLUGIN_DIR/mcp/yandex-wordstat/src/index.mjs" >/dev/null
+node --check "$PLUGIN_DIR/mcp/yandex-wordstat/src/usage-ledger.mjs" >/dev/null
+python3 "$PLUGIN_DIR/mcp/yandex-wordstat/tests/test_wordstat_cloud_gateway_collect.py" >/dev/null
+
+python3 - <<PY
+import json
+from pathlib import Path
+profiles = json.loads(Path("$PLUGIN_DIR/config/yandex_oauth_public_profiles.json").read_text(encoding="utf-8"))
+assert set(profiles) == {"legacy_direct", "master_yandex"}
+for profile in profiles.values():
+    assert profile.get("client_id")
+    assert "client_secret" not in profile
+PY
 
 echo "Bundle structure looks valid."

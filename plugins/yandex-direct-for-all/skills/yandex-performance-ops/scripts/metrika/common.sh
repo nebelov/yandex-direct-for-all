@@ -4,8 +4,8 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" \&\& pwd)"
-SKILL_DIR="$(cd "$SCRIPT_DIR/../.." \&\& pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SKILL_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PROJECT_ROOT="${YANDEX_METRIKA_PROJECT_ROOT:-$PWD}"
 CONFIG_FILE="${YANDEX_METRIKA_CONFIG_FILE:-$PROJECT_ROOT/.codex/yandex-metrika.env}"
 CACHE_DIR="${YANDEX_METRIKA_CACHE_DIR:-$PROJECT_ROOT/.codex/cache/yandex-metrika}"

@@ -26,10 +26,12 @@
     "yandexWordstat": {
       "command": "node",
       "args": [
-        "./mcp/yandex-wordstat/dist/index.js"
+        "./mcp/yandex-wordstat/src/index.mjs"
       ],
       "env": {
-        "YANDEX_WORDSTAT_TOKEN": "${YANDEX_WORDSTAT_TOKEN}"
+        "YANDEX_WORDSTAT_API_KEY": "${YANDEX_WORDSTAT_API_KEY}",
+        "YANDEX_WORDSTAT_FOLDER_ID": "${YANDEX_WORDSTAT_FOLDER_ID}",
+        "YDFALL_STATE_ROOT": "${YDFALL_STATE_ROOT}"
       }
     }
   }

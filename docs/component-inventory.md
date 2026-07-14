@@ -1,75 +1,34 @@
-# Component Inventory
+# Состав набора
 
-## Что включено в bundle
-
-### Skills
-
-| Компонент | Назначение | Состав |
-|---|---|---|
-| `yandex-performance-ops` | day-2/day-N работа с `Direct`, `Wordstat`, `Metrika`, `Roistat` | `59` scripts + templates + references + schemas |
-| `yandex-direct-client-lifecycle` | intake, research, proposal, handoff | `17` scripts + templates + references |
-| `roistat-reports-api` | отчёты `Roistat` только через API | `3` scripts + references |
-| `amocrm-api-control` | `amoCRM` OAuth/control + `Yandex Audiences` companion automation | `3` scripts + references |
-
-## Что реально обязательно по env
-
-- `Direct / Metrika / Audience`, default launcher path -> обязательных env нет
-- `Direct` runtime без launcher -> обычно `YD_TOKEN` и `YD_CLIENT_LOGIN`
-- `Wordstat` -> `YANDEX_WORDSTAT_TOKEN` и `YANDEX_WORDSTAT_CLIENT_PATH`
-- `Yandex Search API` -> `YANDEX_SEARCH_API_KEY` и `YANDEX_SEARCH_FOLDER_ID`
-- кастомный OAuth app -> соответствующие `*_OAUTH_CLIENT_ID` и при необходимости `*_OAUTH_CLIENT_SECRET`
-
-Канонический шаблон:
-
-- `plugins/yandex-direct-for-all/examples/yandex.env.example`
-
-### MCP servers
+## Основные навыки
 
 | Компонент | Назначение |
 |---|---|
-| `mcp/yandex-direct` | CRUD и чтение по `Yandex Direct API` |
-| `mcp/yandex-search` | web search / AI search через `Yandex Search API` |
-| `mcp/yandex-wordstat` | `Wordstat` top requests / dynamics / regions / regions tree / quota |
+| yandex-direct-unified | Единый порядок авторизации, чтения, анализа и контролируемой записи |
+| yandex-wordstat | Актуальный справочник Wordstat v2 |
+| yandex-performance-ops | Совместимый переходник и переносимые сценарии |
+| yandex-direct-client-lifecycle | Совместимый переходник и исследовательские шаблоны |
+| roistat-reports-api | Воспроизводимые отчёты Roistat |
+| amocrm-api-control | Авторизация и сверка amoCRM |
 
-## Канонические источники
+## Подключаемые службы
 
-Сборка опирается на уже нормализованные global skills и их аудит полноты:
+| Компонент | Назначение |
+|---|---|
+| mcp/yandex-direct | Безопасное чтение Яндекс.Директа |
+| mcp/yandex-search | Поиск через Yandex Search API |
+| mcp/yandex-wordstat | Wordstat v2 с общим учётом квот |
 
-- `plugins/yandex-direct-for-all/skills/yandex-performance-ops/references/source_inventory.md`
-- `plugins/yandex-direct-for-all/skills/yandex-performance-ops/references/completeness_audit_2026-03-05.md`
+## Авторизация
 
-Ключевые upstream-источники, уже поднятые в global skill:
+Для Директа и Метрики поставляются два общих открытых приложения. Пользователь авторизует собственный Яндекс-аккаунт без создания приложения. Секретов приложений, токенов и клиентских выгрузок в наборе нет.
 
-- `kartinium/.claude/skills/direct-search-semantics`
-- `kartinium/.claude/skills/yandex-direct`
-- `kartinium/.claude/skills/yandex-wordstat`
-- `kartinium/.claude/skills/roistat-direct`
-- `kartinium/.claude/skills/media-plan`
-- `ads/siz/.claude/skills/direct-optimization`
-- `ads/siz/.claude/skills/yandex-metrika`
-- `ads/siz/.claude/skills/competitive-ads-extractor`
-- `ads/siz/.claude/skills/ppc-data-analysis`
-- `ads/tenevoy/.claude/skills/direct-optimization`
-- `ads/tenevoy/.claude/skills/roistat-direct`
+Для Wordstat и поиска пользователь указывает собственный ключ Yandex Cloud и каталог через защищённую локальную настройку.
 
-## Что сознательно не включено
+## Не входит в набор
 
-Сюда намеренно не поднимались:
-
-- client-specific product catalogs
-- campaign maps и board IDs
-- локальные overlays с секретами
-- raw client reports
-- analysis-скрипты, которые сами принимают бизнес-решения вместо ручного review
-
-Причина: это не reusable слой, а перенос клиентской специфики.
-
-## Зачем добавлен `amocrm-api-control`
-
-Основной комплект Яндекса закрывается тремя skills:
-
-- `yandex-performance-ops`
-- `yandex-direct-client-lifecycle`
-- `roistat-reports-api`
-
-Но сценарии `CRM stage -> Yandex Audiences` уже присутствуют в вашем контуре работы. Чтобы их не потерять, в bundle включён `amocrm-api-control` как optional companion layer.
+- клиентские выгрузки и отчёты;
+- токены, коды, пароли и секреты;
+- абсолютные пути рабочих машин;
+- карты конкретных кампаний и досок;
+- сценарии, автоматически принимающие смысловые решения.

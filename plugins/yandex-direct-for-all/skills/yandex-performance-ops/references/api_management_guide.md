@@ -162,85 +162,9 @@ Content-Type: application/json
 | `PAY_FOR_CONVERSION` | Оплата за конверсии |
 | `SERVING_OFF` | Показы выключены |
 
-### Пример создания ЕПК с curl
+### Безопасное выполнение
 
-```bash
-curl -X POST "https://api.direct.yandex.com/json/v501/campaigns" \
-  -H "Authorization: Bearer YOUR_OAUTH_TOKEN" \
-  -H "Content-Type: application/json" \
-  -H "Accept-Language: ru" \
-  -d '{
-    "method": "add",
-    "params": {
-      "Campaigns": [{
-        "Name": "Тестовая ЕПК",
-        "StartDate": "2026-03-01",
-        "UnifiedCampaign": {
-          "BiddingStrategy": {
-            "Search": {
-              "BiddingStrategyType": "WB_MAXIMUM_CLICKS",
-              "WbMaximumClicks": {
-                "WeeklySpendLimit": 10000000000
-              }
-            },
-            "Network": {
-              "BiddingStrategyType": "NETWORK_DEFAULT"
-            }
-          }
-        }
-      }]
-    }
-  }'
-```
-
-### Пример создания ЕПК с Python
-
-```python
-import requests
-
-API_URL = "https://api.direct.yandex.com/json/v501/campaigns"
-OAUTH_TOKEN = "YOUR_OAUTH_TOKEN"
-
-headers = {
-    "Authorization": f"Bearer {OAUTH_TOKEN}",
-    "Content-Type": "application/json",
-    "Accept-Language": "ru"
-}
-
-payload = {
-    "method": "add",
-    "params": {
-        "Campaigns": [{
-            "Name": "Тестовая ЕПК через Python",
-            "StartDate": "2026-03-01",
-            "UnifiedCampaign": {
-                "BiddingStrategy": {
-                    "Search": {
-                        "BiddingStrategyType": "AVERAGE_CPC",
-                        "AverageCpc": {
-                            "AverageCpc": 30000000,  # 30 руб
-                            "WeeklySpendLimit": 10000000000  # 10000 руб
-                        }
-                    },
-                    "Network": {
-                        "BiddingStrategyType": "NETWORK_DEFAULT"
-                    }
-                },
-                "Settings": [
-                    {"Option": "ADD_METRICA_TAG", "Value": "YES"},
-                    {"Option": "ENABLE_SITE_MONITORING", "Value": "YES"}
-                ],
-                "CounterIds": {"Items": [12345678]},
-                "AttributionModel": "AUTO"
-            }
-        }]
-    }
-}
-
-response = requests.post(API_URL, headers=headers, json=payload)
-result = response.json()
-print(f"Campaign ID: {result['result']['AddResults'][0]['Id']}")
-```
+Не передавайте токен в примере команды или исходном файле. Подготовьте проверяемый пакет и выполняйте создание только через единые ворота записи после явного разрешения пользователя.
 
 ### Лимиты
 
