@@ -12,14 +12,26 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import httpx
-
-
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "wordstat_cloud_gateway_collect.py"
 SPEC = importlib.util.spec_from_file_location("wordstat_cloud_gateway_collect", SCRIPT)
 assert SPEC and SPEC.loader
 cloud = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(cloud)
+
+
+class Response:
+    def __init__(self, status_code: int, *, payload: object, headers: dict[str, str] | None = None) -> None:
+        self.status_code = status_code
+        self.payload = payload
+        self.headers = headers or {}
+        self.text = json.dumps(payload, ensure_ascii=False)
+
+    @property
+    def ok(self) -> bool:
+        return self.status_code < 400
+
+    def json(self) -> object:
+        return self.payload
 
 
 class FakePacer:
@@ -62,11 +74,11 @@ class CollectorTests(unittest.TestCase):
 
     def test_retry_after_continues_and_records_billed_call(self) -> None:
         responses = [
-            httpx.Response(429, headers={"Retry-After": "1"}, json={"message": "quota"}),
-            httpx.Response(200, json={"totalCount": "1", "results": [], "associations": []}),
+            Response(429, headers={"Retry-After": "1"}, payload={"message": "quota"}),
+            Response(200, payload={"totalCount": "1", "results": [], "associations": []}),
         ]
         pacer = FakePacer()
-        with mock.patch.object(cloud.httpx, "post", side_effect=responses):
+        with mock.patch.object(cloud.http_client, "post", side_effect=responses):
             result = cloud.request_cloud(
                 "not-a-real-key",
                 "/v2/wordstat/topRequests",
@@ -81,9 +93,9 @@ class CollectorTests(unittest.TestCase):
     def test_regions_tree_has_zero_billed_cost(self) -> None:
         pacer = FakePacer()
         with mock.patch.object(
-            cloud.httpx,
+            cloud.http_client,
             "post",
-            return_value=httpx.Response(200, json={"regions": []}),
+            return_value=Response(200, payload={"regions": []}),
         ):
             result = cloud.request_cloud(
                 "not-a-real-key",
@@ -229,22 +241,22 @@ class CollectorTests(unittest.TestCase):
             def response_for(url: str, **kwargs):
                 requests.append(url.rsplit("/", 1)[-1])
                 if url.endswith("/getRegionsTree"):
-                    return httpx.Response(200, json={"regions": []})
+                    return Response(200, payload={"regions": []})
                 if url.endswith("/topRequests"):
                     self.assertEqual(kwargs["json"]["phrase"], source_mask)
-                    return httpx.Response(
+                    return Response(
                         200,
-                        json={"totalCount": "1", "results": [{"phrase": "пример услуги", "count": "1"}], "associations": []},
+                        payload={"totalCount": "1", "results": [{"phrase": "пример услуги", "count": "1"}], "associations": []},
                     )
                 if url.endswith("/regions"):
-                    return httpx.Response(
+                    return Response(
                         200,
-                        json={"results": [{"region": "225", "count": "1", "share": 0.1, "affinityIndex": 1.0}]},
+                        payload={"results": [{"region": "225", "count": "1", "share": 0.1, "affinityIndex": 1.0}]},
                     )
                 if url.endswith("/dynamics"):
-                    return httpx.Response(
+                    return Response(
                         200,
-                        json={"results": [{"date": "2026-06-01T00:00:00Z", "count": "1", "share": 0.1}]},
+                        payload={"results": [{"date": "2026-06-01T00:00:00Z", "count": "1", "share": 0.1}]},
                     )
                 raise AssertionError(url)
 
@@ -256,7 +268,7 @@ class CollectorTests(unittest.TestCase):
                 "--dynamics",
             ]
             with mock.patch.object(sys, "argv", argv), mock.patch.object(
-                cloud.httpx, "post", side_effect=response_for
+                cloud.http_client, "post", side_effect=response_for
             ):
                 self.assertEqual(cloud.main(), 0)
             self.assertEqual(requests, ["getRegionsTree", "topRequests", "regions", "dynamics"])
@@ -267,7 +279,7 @@ class CollectorTests(unittest.TestCase):
             self.assertTrue(all(item["normalized_label"] == "пример_услуги" for item in mask_entries))
 
             with mock.patch.object(sys, "argv", argv), mock.patch.object(
-                cloud.httpx, "post", side_effect=AssertionError("resume must not request again")
+                cloud.http_client, "post", side_effect=AssertionError("resume must not request again")
             ):
                 self.assertEqual(cloud.main(), 0)
             resumed = json.loads((output / "raw_bundle/_manifest.json").read_text(encoding="utf-8"))

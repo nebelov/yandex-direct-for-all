@@ -8,13 +8,25 @@ import json
 import math
 import os
 import re
+import sys
 import time
 from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Callable
 
-import httpx
+for candidate in (
+    Path(__file__).resolve().parents[3] / "scripts",
+    Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "plugins/yandex-direct-for-all/scripts",
+    Path(os.environ.get("CLAUDE_HOME", Path.home() / ".claude")) / "plugins/yandex-direct-for-all/scripts",
+):
+    if (candidate / "portable_http.py").is_file():
+        sys.path.insert(0, str(candidate))
+        break
+else:
+    raise RuntimeError("Не найден переносимый HTTP-слой yandex-direct-for-all")
+
+import portable_http as http_client  # noqa: E402
 
 
 BASE_URL = "https://searchapi.api.cloud.yandex.net"
@@ -59,7 +71,7 @@ def write_json_atomic(path: Path, payload: Any, mode: int | None = None) -> None
     temporary.replace(path)
 
 
-def safe_json(response: httpx.Response) -> Any:
+def safe_json(response: http_client.Response) -> Any:
     try:
         return response.json()
     except Exception:
@@ -325,7 +337,7 @@ class QuotaPacer:
             self._release()
 
 
-def retry_after_seconds(response: httpx.Response) -> float:
+def retry_after_seconds(response: http_client.Response) -> float:
     raw = str(response.headers.get("Retry-After") or "").strip()
     if not raw:
         return 60.0
@@ -354,7 +366,7 @@ def request_cloud(
         attempt += 1
         pacer.before_request(billed=endpoint != "/v2/wordstat/getRegionsTree")
         try:
-            response = httpx.post(
+            response = http_client.post(
                 f"{BASE_URL}{endpoint}",
                 headers={
                     "Authorization": f"Api-Key {api_key}",
@@ -371,16 +383,16 @@ def request_cloud(
             result = {
                 "endpoint": endpoint,
                 "http_status": response.status_code,
-                "ok": response.is_success,
+                "ok": response.ok,
                 "payload": payload,
                 "attempt": attempt,
                 "summary": (
                     f"{endpoint} ok"
-                    if response.is_success
+                    if response.ok
                     else (payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False)[:500])
                 ),
             }
-            if response.is_success:
+            if response.ok:
                 try:
                     validator(payload)
                 except ValueError as exc:

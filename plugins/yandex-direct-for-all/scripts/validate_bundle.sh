@@ -158,6 +158,7 @@ for path in [
 PY
 node --check "$PLUGIN_DIR/mcp/yandex-wordstat/src/index.mjs" >/dev/null
 node --check "$PLUGIN_DIR/mcp/yandex-wordstat/src/convert.mjs" >/dev/null
+PYTHONNOUSERSITE=1 python3 -I -S "$PLUGIN_DIR/mcp/yandex-wordstat/scripts/wordstat_cloud_gateway_collect.py" --help >/dev/null
 python3 "$PLUGIN_DIR/mcp/yandex-wordstat/tests/test_wordstat_cloud_gateway_collect.py" >/dev/null
 
 python3 - <<PY
