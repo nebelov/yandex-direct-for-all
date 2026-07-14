@@ -80,7 +80,7 @@ def collect_one(access: DirectAccess, campaign_id: int, date_from: str, date_to:
 
 
 def merge_ready(output_dir: Path, rows: list[dict[str, Any]]) -> dict[str, Any]:
-    ready = [output_dir / row["artifact"] for row in rows if row.get("status") == "ready"]
+    ready = [Path(row["artifact_path"]) for row in rows if row.get("status") == "ready"]
     merged = bytearray()
     for index, path in enumerate(ready):
         lines = path.read_bytes().splitlines(keepends=True)

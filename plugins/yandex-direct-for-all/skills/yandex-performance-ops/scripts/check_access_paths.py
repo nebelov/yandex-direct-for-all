@@ -279,7 +279,7 @@ def fetch_direct_report(
                 "request_sha256": request_sha256,
                 "request_artifact": request_path.name,
                 "request_id": request_id,
-                "artifact": artifact_path.name,
+                "artifact_path": str(artifact_path),
                 "artifact_sha256": hashlib.sha256(payload).hexdigest(),
                 "bytes": len(payload),
             }

@@ -213,7 +213,7 @@ def get_report_bulk(report_type, fields, date_from, date_to, token, login, outpu
         return get_report_bulk(report_type, fields, date_from, date_to, token, login, output_dir, name + "_ng", with_goals=False, environment=environment)
     if state.get("status") != "ready":
         raise RuntimeError(f"Reports API не подготовил отчёт: {state.get('status')}")
-    return (Path(output_dir) / state["artifact"]).read_text(encoding="utf-8")
+    return Path(state["artifact_path"]).read_text(encoding="utf-8")
 
 
 def fetch_image_urls(token, login, hashes, environment="production"):

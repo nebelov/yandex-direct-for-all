@@ -110,7 +110,7 @@ def report_call(
     state = fetch_direct_report(access, params, Path(output_dir))
     if state.get("status") != "ready":
         raise RuntimeError(f"Report {report_type} cid={campaign_id} не готов: {state.get('status')}")
-    return (Path(output_dir) / state["artifact"]).read_text(encoding="utf-8")
+    return Path(state["artifact_path"]).read_text(encoding="utf-8")
 
 
 def save_json(data, path):

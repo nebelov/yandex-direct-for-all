@@ -231,13 +231,14 @@ with tempfile.TemporaryDirectory() as directory:
     assert [item["status"] for item in states] == ["queued", "pending"]
     assert all(item["request_id"] == "report-1" for item in states)
     request_path = output / ready["request_artifact"]
-    artifact_path = output / ready["artifact"]
+    artifact_path = Path(ready["artifact_path"])
     assert hashlib.sha256(request_path.read_bytes()).hexdigest() == ready["request_sha256"]
     assert hashlib.sha256(artifact_path.read_bytes()).hexdigest() == ready["artifact_sha256"]
     assert ready["status"] == "ready" and ready["request_id"] == "report-1"
 PY
 
 python3 - <<'PY'
+import hashlib
 import importlib.util
 import json
 import sys
@@ -268,19 +269,39 @@ fetch_sqr = load("fetch_sqr_parallel")
 
 with tempfile.TemporaryDirectory() as directory:
     temp = Path(directory)
-    manifest_path = temp / "autotest-manifest.json"
-    tester = campaign_autotest.CampaignAutotest(access, [1], collection_manifest=manifest_path)
-    with mock.patch.object(campaign_autotest, "fetch_direct_pages", side_effect=[
-        page("campaigns", "Campaigns", [{"Id": 1}, {"Id": 2}], pages=2),
-        page("ads", "Ads", [{"Id": 3}], pages=1, complete=False, error="partial"),
-    ]):
-        assert len(tester.call("campaigns", "get", {}, version="v501")["result"]["Campaigns"]) == 2
-        assert tester.call("ads", "get", {}) == {"error": "partial"}
-    saved = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert not saved["complete"] and saved["source_count"] == 2
-    assert saved["sources"]["001-campaigns"]["pages"] == 2
-    assert saved["sources"]["001-campaigns"]["objects"] == 2
-    assert saved["sources"]["002-ads"]["complete"] is False
+    complete_manifest_path = temp / "autotest-complete-manifest.json"
+    complete_tester = campaign_autotest.CampaignAutotest(access, [1], collection_manifest=complete_manifest_path)
+    with mock.patch.object(campaign_autotest, "fetch_direct_pages", return_value=
+                           page("campaigns", "Campaigns", [{"Id": 1}, {"Id": 2}], pages=2)):
+        assert len(complete_tester.call("campaigns", "get", {}, version="v501")["result"]["Campaigns"]) == 2
+    complete_saved = json.loads(complete_manifest_path.read_text(encoding="utf-8"))
+    assert complete_saved["complete"] and complete_saved["source_count"] == 1
+    assert complete_saved["sources"]["001-campaigns"]["pages"] == 2
+    assert complete_saved["sources"]["001-campaigns"]["objects"] == 2
+    assert complete_saved["sources"]["001-campaigns"]["checksum"] == "a" * 64
+
+    partial_manifest_path = temp / "autotest-partial-manifest.json"
+    partial_tester = campaign_autotest.CampaignAutotest(access, [1], collection_manifest=partial_manifest_path)
+    with mock.patch.object(campaign_autotest, "fetch_direct_pages", return_value=
+                           page("ads", "Ads", [{"Id": 3}], pages=1, complete=False, error="partial")):
+        assert partial_tester.call("ads", "get", {}) == {"error": "partial"}
+    saved = json.loads(partial_manifest_path.read_text(encoding="utf-8"))
+    assert not saved["complete"] and saved["source_count"] == 1
+    assert saved["sources"]["001-ads"]["pages"] == 1
+    assert saved["sources"]["001-ads"]["objects"] == 1
+    assert saved["sources"]["001-ads"]["checksum"] == "a" * 64
+    assert saved["sources"]["001-ads"]["complete"] is False
+
+    delivery_complete_dir = temp / "delivery-complete"
+    with mock.patch.object(sys, "argv", ["audit", "--output-dir", str(delivery_complete_dir)]), \
+         mock.patch.object(audit_delivery, "load_direct_access", return_value=access), \
+         mock.patch.object(audit_delivery, "fetch_direct_pages", return_value=page("campaigns", "Campaigns", [], pages=1)):
+        audit_delivery.main()
+    delivery_complete = json.loads((delivery_complete_dir / "collection-manifest.json").read_text(encoding="utf-8"))
+    assert delivery_complete["complete"] and delivery_complete["source_count"] == 1
+    assert delivery_complete["sources"]["campaigns"]["pages"] == 1
+    assert delivery_complete["sources"]["campaigns"]["objects"] == 0
+    assert delivery_complete["sources"]["campaigns"]["checksum"] == "a" * 64
 
     delivery_dir = temp / "delivery"
     with mock.patch.object(sys, "argv", ["audit", "--output-dir", str(delivery_dir)]), \
@@ -293,10 +314,28 @@ with tempfile.TemporaryDirectory() as directory:
         else:
             raise AssertionError("delivery audit accepted a partial page result")
     delivery_manifest = json.loads((delivery_dir / "collection-manifest.json").read_text(encoding="utf-8"))
-    assert not delivery_manifest["complete"] and delivery_manifest["sources"]["campaigns"]["objects"] == 1
+    assert not delivery_manifest["complete"]
+    assert delivery_manifest["sources"]["campaigns"]["pages"] == 1
+    assert delivery_manifest["sources"]["campaigns"]["objects"] == 1
+    assert delivery_manifest["sources"]["campaigns"]["checksum"] == "a" * 64
 
     cluster = temp / "cluster.tsv"
     cluster.write_text("campaign_name\tadgroup_name\tphrase\nC\tG\tphrase\n", encoding="utf-8")
+    copy_complete_json = temp / "copy-complete" / "result.json"
+    with mock.patch.object(sys, "argv", [
+        "audit", "--campaign-ids", "1", "--cluster-map", str(cluster),
+        "--output-tsv", str(temp / "copy-complete" / "result.tsv"), "--output-json", str(copy_complete_json),
+    ]), mock.patch.object(audit_copy, "load_direct_access", return_value=access), \
+         mock.patch.object(audit_copy, "fetch_direct_pages", side_effect=[
+             page("adgroups", "AdGroups", [], pages=1),
+             page("campaigns", "Campaigns", [], pages=1),
+             page("ads", "Ads", [], pages=1),
+         ]):
+        audit_copy.main()
+    copy_complete = json.loads((copy_complete_json.parent / "result.collection-manifest.json").read_text(encoding="utf-8"))
+    assert copy_complete["complete"] and copy_complete["source_count"] == 3
+    assert all(source["pages"] == 1 and source["checksum"] == "a" * 64 for source in copy_complete["sources"].values())
+
     copy_json = temp / "copy" / "result.json"
     with mock.patch.object(sys, "argv", [
         "audit", "--campaign-ids", "1", "--cluster-map", str(cluster),
@@ -310,10 +349,28 @@ with tempfile.TemporaryDirectory() as directory:
         else:
             raise AssertionError("copy audit accepted a partial page result")
     copy_manifest = json.loads((copy_json.parent / "result.collection-manifest.json").read_text(encoding="utf-8"))
-    assert not copy_manifest["complete"] and copy_manifest["sources"]["adgroups"]["pages"] == 1
+    assert not copy_manifest["complete"]
+    assert copy_manifest["sources"]["adgroups"]["pages"] == 1
+    assert copy_manifest["sources"]["adgroups"]["objects"] == 0
+    assert copy_manifest["sources"]["adgroups"]["checksum"] == "a" * 64
 
     minus = temp / "minus.tsv"
     minus.write_text("word\nminus\n", encoding="utf-8")
+    readiness_complete_json = temp / "readiness-complete" / "result.json"
+    with mock.patch.object(sys, "argv", [
+        "verify", "--campaign-ids", "1", "--cluster-map", str(cluster),
+        "--minus-words", str(minus), "--output", str(readiness_complete_json),
+    ]), mock.patch.object(readiness, "load_direct_access", return_value=access), \
+         mock.patch.object(readiness, "fetch_direct_pages", side_effect=[
+             page("campaigns", "Campaigns", [], pages=1),
+             page("adgroups", "AdGroups", [], pages=1),
+             page("keywords", "Keywords", [], pages=1),
+         ]):
+        readiness.main()
+    readiness_complete = json.loads((readiness_complete_json.parent / "result.collection-manifest.json").read_text(encoding="utf-8"))
+    assert readiness_complete["complete"] and readiness_complete["source_count"] == 3
+    assert all(source["pages"] == 1 and source["checksum"] == "a" * 64 for source in readiness_complete["sources"].values())
+
     readiness_json = temp / "readiness" / "result.json"
     with mock.patch.object(sys, "argv", [
         "verify", "--campaign-ids", "1", "--cluster-map", str(cluster),
@@ -327,20 +384,38 @@ with tempfile.TemporaryDirectory() as directory:
         else:
             raise AssertionError("readiness check accepted a partial page result")
     readiness_manifest = json.loads((readiness_json.parent / "result.collection-manifest.json").read_text(encoding="utf-8"))
-    assert not readiness_manifest["complete"] and readiness_manifest["sources"]["campaigns"]["checksum"] == "a" * 64
+    assert not readiness_manifest["complete"]
+    assert readiness_manifest["sources"]["campaigns"]["pages"] == 1
+    assert readiness_manifest["sources"]["campaigns"]["objects"] == 0
+    assert readiness_manifest["sources"]["campaigns"]["checksum"] == "a" * 64
+
+    sqr_complete_dir = temp / "sqr-complete"
+    sqr_complete_dir.mkdir()
+    for campaign_id in (1, 2):
+        (sqr_complete_dir / f"{campaign_id}.tsv").write_text("CampaignId\tClicks\n%d\t2\n" % campaign_id, encoding="utf-8")
+    def complete_report(_access, definition, _output):
+        campaign_id = int(definition["SelectionCriteria"]["Filter"][0]["Values"][0])
+        artifact = sqr_complete_dir / f"{campaign_id}.tsv"
+        return {"status": "ready", "artifact_path": str(artifact), "artifact_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest()}
+    with mock.patch.object(fetch_sqr, "load_direct_access", return_value=access), \
+         mock.patch.object(fetch_sqr, "fetch_direct_report", side_effect=complete_report):
+        sqr_complete = fetch_sqr.collect(None, [1, 2], "2026-01-01", "2026-01-02", sqr_complete_dir, 1)
+    assert sqr_complete["complete"] and sqr_complete["ready"] == 2 and sqr_complete["failed"] == 0
+    assert sqr_complete["merged"]["parts"] == 2 and len(sqr_complete["merged"]["sha256"]) == 64
 
     sqr_dir = temp / "sqr"
     sqr_dir.mkdir()
-    (sqr_dir / "one.tsv").write_text("CampaignId\tClicks\n1\t2\n", encoding="utf-8")
+    one = sqr_dir / "one.tsv"
+    one.write_text("CampaignId\tClicks\n1\t2\n", encoding="utf-8")
     def report(_access, definition, _output):
         if definition["ReportName"].startswith("public-sqr-1-"):
-            return {"status": "ready", "artifact": "one.tsv", "artifact_sha256": "b" * 64}
+            return {"status": "ready", "artifact_path": str(one), "artifact_sha256": hashlib.sha256(one.read_bytes()).hexdigest()}
         raise RuntimeError("synthetic report failure")
     with mock.patch.object(fetch_sqr, "load_direct_access", return_value=access), \
          mock.patch.object(fetch_sqr, "fetch_direct_report", side_effect=report):
         sqr_manifest = fetch_sqr.collect(None, [1, 2], "2026-01-01", "2026-01-02", sqr_dir, 1)
     assert not sqr_manifest["complete"] and sqr_manifest["ready"] == 1 and sqr_manifest["failed"] == 1
-    assert sqr_manifest["merged"]["parts"] == 1
+    assert sqr_manifest["merged"]["parts"] == 1 and len(sqr_manifest["merged"]["sha256"]) == 64
     assert json.loads((sqr_dir / "manifest.json").read_text(encoding="utf-8"))["parts"][1]["status"] == "error"
 PY
 

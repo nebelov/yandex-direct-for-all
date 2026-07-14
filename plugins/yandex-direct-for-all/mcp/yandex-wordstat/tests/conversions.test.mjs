@@ -255,7 +255,7 @@ describe('persistent Wordstat usage ledger', () => {
 
   test('recovers an owner-recorded lock left by a dead process', async () => {
     const statePath = await quotaFixture();
-    await writeFile(`${statePath}.lock`, `${JSON.stringify({ version: 1, pid: 999999, acquiredAt: '2026-07-14T00:00:00Z' })}\n`, { mode: 0o600 });
+    await writeFile(`${statePath}.lock`, `${JSON.stringify({ version: 2, pid: 999999, processIdentity: 'dead:1', acquiredAt: '2026-07-14T00:00:00Z' })}\n`, { mode: 0o600 });
     const checkedOwners = [];
     const ledger = new WordstatUsageLedger({
       statePath,
@@ -266,6 +266,21 @@ describe('persistent Wordstat usage ledger', () => {
     expect(checkedOwners).toEqual([999999]);
     expect((await ledger.snapshot()).requestsLastHour).toBe(1);
     await expect(stat(`${statePath}.lock`)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  test('recovers a stale lock when the operating system reused the owner pid', async () => {
+    const statePath = await quotaFixture();
+    await writeFile(`${statePath}.lock`, `${JSON.stringify({ version: 2, pid: 4242, processIdentity: 'linux:old-start', acquiredAt: '2026-07-14T00:00:00Z' })}\n`, { mode: 0o600 });
+    const waits = [];
+    const ledger = new WordstatUsageLedger({
+      statePath,
+      isProcessAlive: () => true,
+      getProcessIdentity: (pid) => pid === 4242 ? 'linux:new-start' : 'linux:self-start',
+      sleep: async (ms) => waits.push(ms),
+    });
+    await ledger.reserve({ endpoint: '/v2/wordstat/topRequests', billed: true });
+    expect(waits).toEqual([]);
+    expect((await ledger.snapshot()).requestsLastHour).toBe(1);
   });
 
   test('rejects a corrupt lock instead of waiting forever', async () => {

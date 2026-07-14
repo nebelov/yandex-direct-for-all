@@ -1,4 +1,6 @@
 import { mkdir, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -252,13 +254,44 @@ function processIsAlive(pid) {
   }
 }
 
+function processIdentity(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return null;
+  if (process.platform === 'linux') {
+    try {
+      const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      const commandEnd = stat.lastIndexOf(')');
+      const fields = stat.slice(commandEnd + 2).trim().split(/\s+/);
+      const startTicks = fields[19];
+      if (commandEnd >= 0 && /^\d+$/.test(startTicks || '')) return `linux:${startTicks}`;
+    } catch (error) {
+      if (error.code === 'ENOENT' || error.code === 'ESRCH') return null;
+    }
+  }
+  try {
+    const started = execFileSync('/bin/ps', ['-o', 'lstart=', '-p', String(pid)], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    return started ? `${process.platform}:${started}` : null;
+  } catch {
+    return null;
+  }
+}
+
 export class WordstatUsageLedger {
-  constructor({ statePath = defaultStatePath(), now = () => Date.now(), sleep = delay, isProcessAlive = processIsAlive } = {}) {
+  constructor({
+    statePath = defaultStatePath(),
+    now = () => Date.now(),
+    sleep = delay,
+    isProcessAlive = processIsAlive,
+    getProcessIdentity = processIdentity,
+  } = {}) {
     this.statePath = statePath;
     this.lockPath = `${statePath}.lock`;
     this.now = now;
     this.sleep = sleep;
     this.isProcessAlive = isProcessAlive;
+    this.getProcessIdentity = getProcessIdentity;
   }
 
   async reserve({ endpoint, billed }) {
@@ -307,11 +340,13 @@ export class WordstatUsageLedger {
 
   async #lock() {
     await mkdir(dirname(this.statePath), { recursive: true, mode: 0o700 });
+    const selfIdentity = this.getProcessIdentity(process.pid);
+    if (!selfIdentity) throw new Error('Не удалось определить идентичность процесса для блокировки квоты Wordstat');
     for (;;) {
       let handle;
       try {
         handle = await open(this.lockPath, 'wx', 0o600);
-        await handle.writeFile(`${JSON.stringify({ version: 1, pid: process.pid, acquiredAt: new Date().toISOString() })}\n`);
+        await handle.writeFile(`${JSON.stringify({ version: 2, pid: process.pid, processIdentity: selfIdentity, acquiredAt: new Date().toISOString() })}\n`);
         await handle.sync();
         await handle.close();
         return;
@@ -328,7 +363,16 @@ export class WordstatUsageLedger {
         if (!Number.isInteger(owner.pid) || owner.pid <= 0) {
           throw new Error('Блокировка квоты Wordstat повреждена: отсутствует владелец процесса');
         }
-        if (!this.isProcessAlive(owner.pid)) {
+        if (typeof owner.processIdentity !== 'string' || !owner.processIdentity) {
+          throw new Error('Блокировка квоты Wordstat повреждена: отсутствует идентичность запуска процесса');
+        }
+        let ownerAlive = this.isProcessAlive(owner.pid);
+        const liveIdentity = ownerAlive ? this.getProcessIdentity(owner.pid) : null;
+        if (ownerAlive && !liveIdentity) {
+          ownerAlive = this.isProcessAlive(owner.pid);
+          if (ownerAlive) throw new Error('Не удалось проверить идентичность владельца блокировки квоты Wordstat');
+        }
+        if (!ownerAlive || liveIdentity !== owner.processIdentity) {
           const stalePath = `${this.lockPath}.stale-${process.pid}-${Math.random().toString(16).slice(2)}`;
           try {
             await rename(this.lockPath, stalePath);
