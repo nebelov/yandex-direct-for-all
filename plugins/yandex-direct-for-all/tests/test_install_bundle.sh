@@ -7,6 +7,8 @@ root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
 original_home="$HOME"
 export NPM_CONFIG_CACHE="$original_home/.npm"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$original_home/.cache/uv}"
+export UV_NO_PROGRESS=1
 if [[ -f "$original_home/.npmrc" ]]; then
   export NPM_CONFIG_USERCONFIG="$original_home/.npmrc"
 fi
@@ -45,8 +47,10 @@ check_target() {
   [[ -f "$skill" ]]
   [[ -f "${plugin%/plugins/yandex-direct-for-all}/mcp/yandex-wordstat/src/index.mjs" ]]
   [[ -x "$plugin/mcp/yandex-search/.venv/bin/python" ]]
+  [[ -x "$plugin/mcp/yandex-direct/.venv/bin/python" ]]
   [[ -d "$plugin/mcp/yandex-wordstat/node_modules/@modelcontextprotocol/sdk" ]]
   [[ -x "${plugin%/plugins/yandex-direct-for-all}/mcp/yandex-search/.venv/bin/python" ]]
+  [[ -x "${plugin%/plugins/yandex-direct-for-all}/mcp/yandex-direct/.venv/bin/python" ]]
   [[ -d "${plugin%/plugins/yandex-direct-for-all}/mcp/yandex-wordstat/node_modules/@modelcontextprotocol/sdk" ]]
   if [[ "$target" == codex ]]; then
     [[ -f "$HOME/.agents/plugins/marketplace.json" ]]
@@ -137,8 +141,98 @@ check_both_rollback_is_validated_before_any_write() {
   [[ ! -e "$CLAUDE_HOME/plugins/yandex-direct-for-all" ]]
 }
 
+check_apply_failure_restores_original_state() {
+  export HOME="$root/apply-failure/home"
+  export CODEX_HOME="$HOME/.codex"
+  export CLAUDE_HOME="$HOME/.claude"
+  mkdir -p "$CODEX_HOME"
+  printf '%s\n' "parent blocker" > "$CODEX_HOME/skills"
+  if "$installer" --target codex --apply >"$root/apply-failure.out" 2>&1; then
+    echo "Ожидался управляемый отказ установки" >&2
+    exit 1
+  fi
+  grep -q "восстановлена после ошибки" "$root/apply-failure.out"
+  [[ -f "$CODEX_HOME/skills" ]]
+  grep -q "parent blocker" "$CODEX_HOME/skills"
+  [[ ! -e "$CODEX_HOME/plugins/yandex-direct-for-all" ]]
+  [[ ! -e "$CODEX_HOME/state/yandex-direct-for-all/install-manifest.json" ]]
+  local latest_run
+  latest_run="$(find "$CODEX_HOME/state/yandex-direct-for-all/runs" -mindepth 1 -maxdepth 1 -type d | head -1)"
+  [[ -n "$latest_run" ]]
+  [[ "$(cat "$latest_run/status")" == recovered_failed ]]
+}
+
+check_second_target_failure_restores_both() {
+  export HOME="$root/both-apply-failure/home"
+  export CODEX_HOME="$HOME/.codex"
+  export CLAUDE_HOME="$HOME/.claude"
+  mkdir -p "$CODEX_HOME" "$CLAUDE_HOME"
+  printf '%s\n' "claude blocker" > "$CLAUDE_HOME/skills"
+  if "$installer" --target both --apply >"$root/both-apply-failure.out" 2>&1; then
+    echo "Ожидался отказ второй среды" >&2
+    exit 1
+  fi
+  grep -q "все затронутые среды восстановлены" "$root/both-apply-failure.out"
+  [[ ! -e "$CODEX_HOME/plugins/yandex-direct-for-all" ]]
+  [[ ! -e "$CODEX_HOME/state/yandex-direct-for-all/install-manifest.json" ]]
+  [[ ! -e "$HOME/.agents/plugins/marketplace.json" ]]
+  [[ -f "$CLAUDE_HOME/skills" ]]
+  grep -q "claude blocker" "$CLAUDE_HOME/skills"
+  [[ ! -e "$CLAUDE_HOME/plugins/yandex-direct-for-all" ]]
+  [[ ! -e "$CLAUDE_HOME/state/yandex-direct-for-all/install-manifest.json" ]]
+}
+
+check_next_apply_recovers_stale_transaction() {
+  export HOME="$root/stale-transaction/home"
+  export CODEX_HOME="$HOME/.codex"
+  export CLAUDE_HOME="$HOME/.claude"
+  mkdir -p "$HOME"
+  local first first_run second second_run
+  first="$("$installer" --target codex --apply)"
+  first_run="${first##*RUN_ID=}"
+  first_run="${first_run%%$'\n'*}"
+  printf '%s\n' "applied_pending" > "$CODEX_HOME/state/yandex-direct-for-all/runs/$first_run/status"
+  second="$("$installer" --target codex --apply 2>"$root/stale-transaction.err")"
+  second_run="${second##*RUN_ID=}"
+  second_run="${second_run%%$'\n'*}"
+  grep -q "Восстановлена незавершённая установка" "$root/stale-transaction.err"
+  [[ "$(cat "$CODEX_HOME/state/yandex-direct-for-all/runs/$first_run/status")" == recovered_failed ]]
+  [[ "$(cat "$CODEX_HOME/state/yandex-direct-for-all/runs/$second_run/status")" == applied ]]
+  [[ "$(manifest_run_id_for_test "$CODEX_HOME/state/yandex-direct-for-all/install-manifest.json")" == "$second_run" ]]
+  "$installer" --target codex --rollback "$second_run" >/dev/null
+}
+
+check_stale_transaction_preserves_user_change() {
+  export HOME="$root/stale-user-change/home"
+  export CODEX_HOME="$HOME/.codex"
+  export CLAUDE_HOME="$HOME/.claude"
+  mkdir -p "$HOME"
+  local first first_run skill
+  first="$("$installer" --target codex --apply)"
+  first_run="${first##*RUN_ID=}"
+  first_run="${first_run%%$'\n'*}"
+  printf '%s\n' "applied_pending" > "$CODEX_HOME/state/yandex-direct-for-all/runs/$first_run/status"
+  skill="$CODEX_HOME/skills/yandex-wordstat/SKILL.md"
+  printf '\nuser change after interruption\n' >> "$skill"
+  if "$installer" --target codex --apply >"$root/stale-user-change.out" 2>&1; then
+    echo "Автовосстановление не должно затирать пользовательское изменение" >&2
+    exit 1
+  fi
+  grep -q "Автоматическое восстановление остановлено" "$root/stale-user-change.out"
+  grep -q "user change after interruption" "$skill"
+  [[ "$(cat "$CODEX_HOME/state/yandex-direct-for-all/runs/$first_run/status")" == applied_pending ]]
+}
+
+manifest_run_id_for_test() {
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["run_id"])' "$1"
+}
+
 check_unknown_identical_path_is_rejected
 check_target codex
 check_target claude
 check_both_rollback_is_validated_before_any_write
+check_apply_failure_restores_original_state
+check_second_target_failure_restores_both
+check_next_apply_recovers_stale_transaction
+check_stale_transaction_preserves_user_change
 echo "install bundle contract: PASS"

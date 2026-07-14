@@ -7,6 +7,7 @@ PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$PLUGIN_DIR/../.." && pwd)"
 WORDSTAT_DIR="$PLUGIN_DIR/mcp/yandex-wordstat"
 SEARCH_DIR="$PLUGIN_DIR/mcp/yandex-search"
+DIRECT_DIR="$PLUGIN_DIR/mcp/yandex-direct"
 TEMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TEMP_ROOT"' EXIT
 
@@ -24,8 +25,15 @@ step "Сборка Wordstat из зафиксированных исходник
   bun test
 )
 
+step "Закреплённая сборка сервера Директа"
+(
+  cd "$DIRECT_DIR"
+  UV_PROJECT_ENVIRONMENT="$TEMP_ROOT/direct-venv" uv sync --frozen
+  UV_PROJECT_ENVIRONMENT="$TEMP_ROOT/direct-venv" uv run --frozen python -c 'import server; assert callable(server.main)'
+)
+
 step "Все испытания Python, Node.js и оболочек"
-bash "$PLUGIN_DIR/scripts/validate_bundle.sh"
+YDFALL_DIRECT_PYTHON="$TEMP_ROOT/direct-venv/bin/python" bash "$PLUGIN_DIR/scripts/validate_bundle.sh"
 python3 "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/test_direct_write_gate.py"
 python3 "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/test_mark_search_queue_by_known_minus_words.py"
 python3 -m unittest discover -s "$PLUGIN_DIR/skills/roistat-reports-api/tests" -v

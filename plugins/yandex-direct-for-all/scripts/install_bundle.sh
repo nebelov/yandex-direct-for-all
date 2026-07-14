@@ -69,7 +69,10 @@ require_runtime_tools() {
 }
 
 prepare_mcp_runtime() {
-  local search_dir="$1" wordstat_dir="$2"
+  local direct_dir="$1" search_dir="$2" wordstat_dir="$3"
+  if [[ -d "$direct_dir" ]]; then
+    (cd "$direct_dir" && uv sync --frozen)
+  fi
   if [[ -d "$search_dir" ]]; then
     (cd "$search_dir" && uv sync --frozen)
   fi
@@ -82,13 +85,16 @@ prepare_runtime() {
   local rel="$1" stage="$2"
   case "$rel" in
     plugins/yandex-direct-for-all)
-      prepare_mcp_runtime "$stage/mcp/yandex-search" "$stage/mcp/yandex-wordstat"
+      prepare_mcp_runtime "$stage/mcp/yandex-direct" "$stage/mcp/yandex-search" "$stage/mcp/yandex-wordstat"
+      ;;
+    mcp/yandex-direct)
+      prepare_mcp_runtime "$stage" "" ""
       ;;
     mcp/yandex-search)
-      prepare_mcp_runtime "$stage" ""
+      prepare_mcp_runtime "" "$stage" ""
       ;;
     mcp/yandex-wordstat)
-      prepare_mcp_runtime "" "$stage"
+      prepare_mcp_runtime "" "" "$stage"
       ;;
   esac
 }
@@ -236,8 +242,167 @@ temporary.replace(path)
 PY
 }
 
-install_target() {
+recover_incomplete_install() {
+  local kind="$1" root="$2" run="$3" backup="$4" previous_manifest="$5"
+  local marketplace="$HOME/.agents/plugins/marketplace.json"
+  while IFS=$'\t' read -r rel existed index; do
+    [[ -n "$rel" ]] || continue
+    if [[ "$existed" == 1 ]]; then
+      if [[ -e "$backup/$index" ]]; then
+        rm -rf "${root:?}/$rel"
+        mkdir -p "$(dirname "$root/$rel")"
+        mv "$backup/$index" "$root/$rel"
+      fi
+    else
+      rm -rf "${root:?}/$rel"
+    fi
+  done < <(awk '{rows[NR]=$0} END {for (i=NR; i>=1; i--) print rows[i]}' "$run/operations.tsv")
+  if [[ -f "$run/install-manifest.before.json" ]]; then
+    mkdir -p "$(dirname "$previous_manifest")"
+    cp "$run/install-manifest.before.json" "$previous_manifest"
+  else
+    rm -f "$previous_manifest"
+  fi
+  if [[ "$kind" == codex ]]; then
+    if [[ -f "$run/marketplace.before.json" ]]; then
+      mkdir -p "$(dirname "$marketplace")"
+      cp "$run/marketplace.before.json" "$marketplace"
+    else
+      rm -f "$marketplace"
+    fi
+  fi
+  printf '%s\n' "recovered_failed" > "$run/status"
+  chmod 600 "$run/status"
+}
+
+recover_pending_target() {
   local kind="$1" root="$2"
+  local state="$root/state/yandex-direct-for-all"
+  local run status backup previous_manifest
+  [[ -d "$state/runs" ]] || return 0
+  for run in "$state"/runs/*; do
+    [[ -d "$run" && -f "$run/status" ]] || continue
+    status="$(cat "$run/status")"
+    case "$status" in
+      applying|applied_pending)
+        backup="$root/backups/yandex-direct-for-all/$(basename "$run")"
+        previous_manifest="$state/install-manifest.json"
+        if ! validate_pending_recovery "$kind" "$root" "$run" "$backup"; then
+          echo "Автоматическое восстановление остановлено: после прерывания изменены управляемые пути ($kind, $(basename "$run"))." >&2
+          return 7
+        fi
+        recover_incomplete_install "$kind" "$root" "$run" "$backup" "$previous_manifest"
+        echo "Восстановлена незавершённая установка: $kind ($(basename "$run"))" >&2
+        ;;
+    esac
+  done
+}
+
+validate_pending_recovery() {
+  local kind="$1" root="$2" run="$3" backup="$4"
+  local rel existed index expected_hash old_hash current_hash
+  while IFS=$'\t' read -r rel existed index; do
+    [[ -n "$rel" ]] || continue
+    expected_hash="$(awk -F '\t' -v wanted="$rel" '$1 == wanted {print $3; exit}' "$run/prepared.tsv")"
+    old_hash="$(awk -F '\t' -v wanted="$rel" '$1 == wanted {print $4; exit}' "$run/pre-state.tsv")"
+    if [[ "$existed" == 1 && ! -e "$backup/$index" ]]; then
+      [[ -e "$root/$rel" ]] || return 1
+      current_hash="$(tree_hash "$root/$rel")" || return 1
+      [[ "$current_hash" == "$old_hash" ]] || return 1
+    elif [[ -e "$root/$rel" ]]; then
+      current_hash="$(tree_hash "$root/$rel")" || return 1
+      [[ -n "$expected_hash" && "$current_hash" == "$expected_hash" ]] || return 1
+    fi
+  done < "$run/operations.tsv"
+  if [[ "$kind" == codex ]]; then
+    local marketplace="$HOME/.agents/plugins/marketplace.json"
+    if [[ -f "$run/marketplace.after.sha256" ]]; then
+      [[ -f "$marketplace" ]] || return 1
+      [[ "$(shasum -a 256 "$marketplace" | awk '{print $1}')" == "$(cat "$run/marketplace.after.sha256")" ]] || return 1
+    elif [[ -f "$run/marketplace.before.json" ]]; then
+      [[ -f "$marketplace" ]] || return 1
+      [[ "$(shasum -a 256 "$marketplace" | awk '{print $1}')" == "$(shasum -a 256 "$run/marketplace.before.json" | awk '{print $1}')" ]] || return 1
+    else
+      [[ ! -e "$marketplace" ]] || return 1
+    fi
+  fi
+}
+
+active_kind=""
+active_root=""
+active_run=""
+active_backup=""
+active_manifest=""
+
+recover_active_on_exit() {
+  local exit_code=$?
+  local index installed_item installed_root installed_run
+  trap - EXIT
+  set +e
+  if [[ -n "$active_run" && -f "$active_run/status" && "$(cat "$active_run/status")" == applying ]]; then
+    recover_incomplete_install "$active_kind" "$active_root" "$active_run" "$active_backup" "$active_manifest"
+    echo "Установка восстановлена после прерывания: $active_kind" >&2
+  fi
+  if declare -p installed_items >/dev/null 2>&1; then
+    for ((index=${#installed_items[@]} - 1; index >= 0; index--)); do
+      installed_item="${installed_items[$index]}"
+      installed_root="${installed_item#*:}"
+      installed_run="$installed_root/state/yandex-direct-for-all/runs/$run_id"
+      if [[ -f "$installed_run/status" && "$(cat "$installed_run/status")" == applied_pending ]]; then
+        recover_incomplete_install \
+          "${installed_item%%:*}" \
+          "$installed_root" \
+          "$installed_run" \
+          "$installed_root/backups/yandex-direct-for-all/$run_id" \
+          "$installed_root/state/yandex-direct-for-all/install-manifest.json"
+        echo "Установка восстановлена после прерывания: ${installed_item%%:*}" >&2
+      fi
+    done
+  fi
+  exit "$exit_code"
+}
+
+trap recover_active_on_exit EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+install_prepared_paths() {
+  local root="$1" run="$2" backup="$3" next_manifest="$4"
+  while IFS=$'\t' read -r rel index src_hash; do
+    local dest parent stage existed old_hash old_type installed_hash
+    [[ -n "$rel" ]] || continue
+    dest="$root/$rel"
+    parent="$(dirname "$dest")"
+    stage="$run/stages/$index"
+    existed=0
+    old_hash="-"
+    old_type="-"
+    if [[ -e "$dest" ]]; then
+      existed=1
+      old_hash="$(tree_hash "$dest")" || return 4
+      [[ -d "$dest" ]] && old_type="directory" || old_type="file"
+      printf '%s\tpresent\t%s\t%s\t%s\n' "$rel" "$old_type" "$old_hash" "$index" >> "$run/pre-state.tsv" || return 4
+    else
+      printf '%s\tabsent\t-\t-\t%s\n' "$rel" "$index" >> "$run/pre-state.tsv" || return 4
+    fi
+    printf '%s\t%s\t%s\n' "$rel" "$existed" "$index" >> "$run/operations.tsv" || return 4
+    mkdir -p "$parent" || return 4
+    if [[ "$existed" == 1 ]]; then
+      mv "$dest" "$backup/$index" || return 4
+    fi
+    mv "$stage" "$dest" || return 4
+    installed_hash="$(tree_hash "$dest")" || return 4
+    if [[ "$installed_hash" != "$src_hash" ]]; then
+      echo "Ошибка проверки установленного пути: $rel" >&2
+      return 4
+    fi
+    printf '%s\t%s\t%s\n' "$rel" "$src_hash" "$installed_hash" >> "$next_manifest" || return 4
+  done < "$run/prepared.tsv"
+}
+
+install_target() {
+  local kind="$1" root="$2" defer_commit="${3:-0}"
   local state="$root/state/yandex-direct-for-all"
   local run="$state/runs/$run_id"
   local backup="$root/backups/yandex-direct-for-all/$run_id"
@@ -251,6 +416,14 @@ install_target() {
   : > "$run/prepared.tsv"
   : > "$next_manifest"
   chmod 600 "$run/operations.tsv" "$run/pre-state.tsv" "$run/prepared.tsv" "$next_manifest"
+  if [[ "$kind" == codex ]]; then
+    local marketplace="$HOME/.agents/plugins/marketplace.json"
+    if [[ -f "$marketplace" ]]; then
+      cp "$marketplace" "$run/marketplace.before.json"
+    else
+      : > "$run/marketplace.before.absent"
+    fi
+  fi
 
   local index=0
   for rel in "${managed_paths[@]}"; do
@@ -268,56 +441,52 @@ install_target() {
     if ! prepare_runtime "$rel" "$stage"; then
       rm -rf "$stage"
       echo "Не удалось подготовить зависимости: $rel" >&2
-      exit 4
+      return 4
     fi
     src_hash="$(tree_hash "$src")"
     [[ "$(tree_hash "$stage")" == "$src_hash" ]] || {
       echo "Ошибка проверки подготовленной копии: $rel" >&2
-      exit 4
+      return 4
     }
     printf '%s\t%s\t%s\n' "$rel" "$index" "$src_hash" >> "$run/prepared.tsv"
   done
 
-  while IFS=$'\t' read -r rel index src_hash; do
-    local dest parent stage existed old_hash
-    [[ -n "$rel" ]] || continue
-    dest="$root/$rel"
-    parent="$(dirname "$dest")"
-    stage="$run/stages/$index"
-    mkdir -p "$parent"
-    existed=0
-    if [[ -e "$dest" ]]; then
-      existed=1
-      old_hash="$(tree_hash "$dest")"
-      printf '%s\tpresent\tdirectory\t%s\t%s\n' "$rel" "$old_hash" "$index" >> "$run/pre-state.tsv"
-      mv "$dest" "$backup/$index"
-    else
-      printf '%s\tabsent\t-\t-\t%s\n' "$rel" "$index" >> "$run/pre-state.tsv"
-    fi
-    mv "$stage" "$dest"
-    printf '%s\t%s\t%s\n' "$rel" "$existed" "$index" >> "$run/operations.tsv"
-    local installed_hash
-    installed_hash="$(tree_hash "$dest")"
-    [[ "$installed_hash" == "$src_hash" ]] || {
-      echo "Ошибка проверки установленного пути: $rel" >&2
-      exit 4
-    }
-    printf '%s\t%s\t%s\n' "$rel" "$src_hash" "$installed_hash" >> "$next_manifest"
-  done < "$run/prepared.tsv"
-  write_manifest_json "$next_manifest" "$previous_manifest" "$run_id"
+  printf '%s\n' "applying" > "$run/status"
+  chmod 600 "$run/status"
+  active_kind="$kind"
+  active_root="$root"
+  active_run="$run"
+  active_backup="$backup"
+  active_manifest="$previous_manifest"
+  if ! install_prepared_paths "$root" "$run" "$backup" "$next_manifest"; then
+    recover_incomplete_install "$kind" "$root" "$run" "$backup" "$previous_manifest"
+    active_kind=""; active_root=""; active_run=""; active_backup=""; active_manifest=""
+    echo "Установка восстановлена после ошибки до исходного состояния: $kind" >&2
+    return 4
+  fi
+  if ! write_manifest_json "$next_manifest" "$previous_manifest" "$run_id"; then
+    recover_incomplete_install "$kind" "$root" "$run" "$backup" "$previous_manifest"
+    active_kind=""; active_root=""; active_run=""; active_backup=""; active_manifest=""
+    echo "Установка восстановлена после ошибки записи манифеста: $kind" >&2
+    return 4
+  fi
 
   if [[ "$kind" == codex ]]; then
     local marketplace="$HOME/.agents/plugins/marketplace.json"
-    if [[ -f "$marketplace" ]]; then
-      cp "$marketplace" "$run/marketplace.before.json"
-    else
-      : > "$run/marketplace.before.absent"
+    if ! write_marketplace || ! shasum -a 256 "$marketplace" | awk '{print $1}' > "$run/marketplace.after.sha256"; then
+      recover_incomplete_install "$kind" "$root" "$run" "$backup" "$previous_manifest"
+      active_kind=""; active_root=""; active_run=""; active_backup=""; active_manifest=""
+      echo "Установка восстановлена после ошибки регистрации: $kind" >&2
+      return 4
     fi
-    write_marketplace
-    shasum -a 256 "$marketplace" | awk '{print $1}' > "$run/marketplace.after.sha256"
   fi
-  printf '%s\n' "applied" > "$run/status"
+  if [[ "$defer_commit" == 1 ]]; then
+    printf '%s\n' "applied_pending" > "$run/status"
+  else
+    printf '%s\n' "applied" > "$run/status"
+  fi
   chmod 600 "$run/status"
+  active_kind=""; active_root=""; active_run=""; active_backup=""; active_manifest=""
 }
 
 validate_rollback_target() {
@@ -362,7 +531,7 @@ rollback_target() {
 
   while IFS=$'\t' read -r rel existed index; do
     [[ -n "$rel" ]] || continue
-    rm -rf "$root/$rel"
+    rm -rf "${root:?}/$rel"
     if [[ "$existed" == 1 ]]; then
       mkdir -p "$(dirname "$root/$rel")"
       mv "$backup/$index" "$root/$rel"
@@ -411,6 +580,9 @@ fi
 
 if [[ "$mode" == apply ]]; then
   require_runtime_tools || exit 2
+  for item in "${roots[@]}"; do
+    recover_pending_target "${item%%:*}" "${item#*:}"
+  done
 fi
 
 conflict=0
@@ -424,8 +596,31 @@ if [[ "$mode" == plan ]]; then
   exit 0
 fi
 
+defer_commit=0
+[[ "$target" == both ]] && defer_commit=1
+installed_items=()
 for item in "${roots[@]}"; do
-  install_target "${item%%:*}" "${item#*:}"
+  if ! install_target "${item%%:*}" "${item#*:}" "$defer_commit"; then
+    for ((index=${#installed_items[@]} - 1; index >= 0; index--)); do
+      installed_item="${installed_items[$index]}"
+      installed_root="${installed_item#*:}"
+      installed_run="$installed_root/state/yandex-direct-for-all/runs/$run_id"
+      recover_incomplete_install \
+        "${installed_item%%:*}" \
+        "$installed_root" \
+        "$installed_run" \
+        "$installed_root/backups/yandex-direct-for-all/$run_id" \
+        "$installed_root/state/yandex-direct-for-all/install-manifest.json"
+    done
+    echo "Применение отменено: все затронутые среды восстановлены." >&2
+    exit 4
+  fi
+  installed_items+=("$item")
 done
+if [[ "$defer_commit" == 1 ]]; then
+  for item in "${installed_items[@]}"; do
+    printf '%s\n' "applied" > "${item#*:}/state/yandex-direct-for-all/runs/$run_id/status"
+  done
+fi
 echo "УСТАНОВЛЕНО. RUN_ID=$run_id"
 echo "Откат: $0 --target $target --rollback $run_id"

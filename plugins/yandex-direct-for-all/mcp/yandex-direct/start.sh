@@ -8,4 +8,4 @@ if [[ "$transport" != "stdio" && "$transport" != "sse" ]]; then
   echo "Допустимый транспорт: stdio или sse" >&2
   exit 2
 fi
-exec python3 server.py "$transport"
+exec uv run --frozen python server.py "$transport"
