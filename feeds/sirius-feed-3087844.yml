@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE yml_catalog SYSTEM "shops.dtd">
+<yml_catalog date="2026-02-24">
+  <shop>
+    <name>СИРИУС СИЗ</name>
+    <company>ООО "СИРИУС ОПТ"</company>
+    <url>https://sirius-siz.ru</url>
+    <currencies>
+      <currency id="RUR" rate="1"/>
+    </currencies>
+    <categories>
+      <category id="1">Комбинезоны</category>
+      <category id="2">Халаты</category>
+      <category id="3">Маски</category>
+      <category id="4">Респираторы</category>
+      <category id="5">Перчатки</category>
+      <category id="6">Подшлемники</category>
+    </categories>
+    <offers>
+      <!-- 1. Комбинезон Каспер белый спанбонд -->
+      <offer id="1" available="true">
+        <url>https://sirius-siz.ru/kasper_belyi</url>
+        <price>75</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://static.tildacdn.com/stor3236-3131-4335-b330-643761383336/eecd4d44f0a30eec51ba6ed8be5eed20.jpg</picture>
+        <picture>https://static.tildacdn.com/stor6230-3561-4033-b236-663962376539/c7c36f74674f3992911d00acc606993f.png</picture>
+        <name>Комбинезон защитный "Каспер" одноразовый спанбонд (белый)</name>
+        <vendor>Комбез</vendor>
+        <description>Одноразовый комбинезон из спанбонда. Защита от пыли, загрязнений, аэрозолей. Капюшон, молния, резинки на манжетах. Плотность 25-60 гр. Размеры XL-XXXL. Оптом от 200 шт.</description>
+        <param name="Материал">Спанбонд</param>
+        <param name="Цвет">Белый</param>
+        <param name="Тип">Одноразовый</param>
+        <param name="Плотность">25-60 гр</param>
+      </offer>
+
+      <!-- 2. Комбинезон Каспер черный спанбонд -->
+      <offer id="2" available="true">
+        <url>https://sirius-siz.ru/combez_kasper_cher</url>
+        <price>99</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://static.tildacdn.com/stor3139-6233-4666-b338-643865356531/9bc3956523e1ce3a8d13a015522a1371.jpg</picture>
+        <picture>https://static.tildacdn.com/stor6464-3661-4765-b335-366131626433/1161d6b77acff9df0e2bb2a895108caf.png</picture>
+        <name>Комбинезон защитный "Каспер" одноразовый спанбонд (черный)</name>
+        <vendor>Комбез</vendor>
+        <description>Черный комбинезон из спанбонда. Молния, капюшон, резинки. Барьер от биологических жидкостей, пыли. Гипоаллергенный, влагозащитный. Оптом от 200 шт.</description>
+        <param name="Материал">Спанбонд</param>
+        <param name="Цвет">Черный</param>
+        <param name="Тип">Одноразовый</param>
+        <param name="Плотность">40 гр</param>
+      </offer>
+
+      <!-- 3. Комбинезон Каспер мембрана с проклейкой -->
+      <offer id="3" available="true">
+        <url>https://sirius-siz.ru/combez_kasper_netk</url>
+        <price>115</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://static.tildacdn.com/stor3738-3435-4034-b938-333835363135/cfd7b3e8e4bfff50d5441129ed7e0bd1.png</picture>
+        <picture>https://static.tildacdn.com/stor6237-6364-4564-b765-663038653438/e87011f4d244f47d8094c4a6aeb07fc4.png</picture>
+        <name>Комбинезон защитный "Каспер" мембрана с проклейкой швов</name>
+        <vendor>Комбез</vendor>
+        <description>Мембранный комбинезон с проклеенными швами. Максимальная защита от жидкостей и аэрозолей. Капюшон, молния, резинки. Оптом от 200 шт.</description>
+        <param name="Материал">Мембрана</param>
+        <param name="Цвет">Белый с синими полосками</param>
+        <param name="Тип">Одноразовый</param>
+        <param name="Плотность">65 гр</param>
+      </offer>
+
+      <!-- 4. Комбинезон Каспер мембрана без проклейки -->
+      <offer id="4" available="true">
+        <url>https://sirius-siz.ru/combez_bez_prokleiki</url>
+        <price>125</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://static.tildacdn.com/stor3362-6637-4235-a635-343839373863/ea8c5da9a5bf9ee02494a091a5d5eb3d.png</picture>
+        <picture>https://static.tildacdn.com/stor3430-3466-4864-b035-323431316264/3ace9f652e91ead458d742c1adaa8aed.png</picture>
+        <name>Комбинезон защитный "Каспер" мембрана без проклейки</name>
+        <vendor>Комбез</vendor>
+        <description>Мембранный комбинезон без проклейки швов. Защита от пыли и аэрозолей. Капюшон, молния, резинки. Облегченный вариант. Оптом от 200 шт.</description>
+        <param name="Материал">Мембрана</param>
+        <param name="Цвет">Белый</param>
+        <param name="Тип">Одноразовый</param>
+      </offer>
+
+      <!-- 5. Халат на кнопках -->
+      <offer id="5" available="true">
+        <url>https://sirius-siz.ru/halat_odnoraz</url>
+        <price>34</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>2</categoryId>
+        <picture>https://static.tildacdn.com/stor6238-6637-4162-b764-363034353338/1909e4f447ba7934c8fbdcb93a5f1c4a.png</picture>
+        <picture>https://static.tildacdn.com/stor3061-6633-4631-a562-393837383233/2bf0ed4b84aeb75006e44c2501acd72f.png</picture>
+        <name>Халат одноразовый на кнопках (белый)</name>
+        <vendor>Сириус СИЗ</vendor>
+        <description>Одноразовый халат из спанбонда на кнопках. Рукава на резинке. Для медицины, пищевой промышленности. Плотность 25-40 гр. Оптом от 350 шт.</description>
+        <param name="Материал">Спанбонд</param>
+        <param name="Цвет">Белый</param>
+        <param name="Тип">Одноразовый</param>
+        <param name="Застежка">Кнопки</param>
+      </offer>
+
+      <!-- 6. Халат на липучке -->
+      <offer id="6" available="true">
+        <url>https://sirius-siz.ru/halat_on_lipuch</url>
+        <price>38</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>2</categoryId>
+        <picture>https://static.tildacdn.com/stor6132-3662-4561-b066-646638336661/161466b3df136dba2c107f1e3945c08b.png</picture>
+        <picture>https://static.tildacdn.com/stor6466-3364-4139-b362-643934626166/c678a68b2b48d7c7cc05426b85d68ad8.png</picture>
+        <name>Халат одноразовый на липучке (белый)</name>
+        <vendor>Сириус СИЗ</vendor>
+        <description>Одноразовый халат из спанбонда на липучках. Рукава на резинке. Удобная застежка. Для медицины и промышленности. Оптом от 350 шт.</description>
+        <param name="Материал">Спанбонд</param>
+        <param name="Цвет">Белый</param>
+        <param name="Тип">Одноразовый</param>
+        <param name="Застежка">Липучка</param>
+      </offer>
+
+      <!-- 7. Халат на липучках голубой -->
+      <offer id="7" available="true">
+        <url>https://sirius-siz.ru/lipuchkah_blue</url>
+        <price>38</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>2</categoryId>
+        <picture>https://static.tildacdn.com/stor3739-6339-4930-b364-626435343039/84a15825ae1997045ee9e299bb01e954.png</picture>
+        <picture>https://static.tildacdn.com/stor3862-6632-4234-b433-656235393664/993df4be9f7751bcc8508b00afda116b.png</picture>
+        <name>Халат одноразовый на липучках (голубой)</name>
+        <vendor>Сириус СИЗ</vendor>
+        <description>Голубой одноразовый халат из спанбонда на липучках. Рукава на резинке. Для медицинских учреждений. Оптом от 350 шт.</description>
+        <param name="Материал">Спанбонд</param>
+        <param name="Цвет">Голубой</param>
+        <param name="Тип">Одноразовый</param>
+        <param name="Застежка">Липучка</param>
+      </offer>
+
+      <!-- 8. Халат на завязках -->
+      <offer id="8" available="true">
+        <url>https://sirius-siz.ru/zavyazka_halat</url>
+        <price>29</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>2</categoryId>
+        <picture>https://static.tildacdn.com/stor6162-6463-4632-b737-306465383435/ee2b6320ce52e8eb4dbf24da7a95ab1f.png</picture>
+        <picture>https://static.tildacdn.com/stor3532-3238-4165-a139-376431373566/00011373e8f943b444d0ca01f62511b6.png</picture>
+        <name>Халат одноразовый на завязках</name>
+        <vendor>Сириус СИЗ</vendor>
+        <description>Одноразовый халат из спанбонда на завязках. Классическая медицинская модель. Плотность 20-40 гр. Оптом от 350 шт.</description>
+        <param name="Материал">Спанбонд</param>
+        <param name="Цвет">Белый</param>
+        <param name="Тип">Одноразовый</param>
+        <param name="Застежка">Завязки</param>
+      </offer>
+
+      <!-- 9. Маска медицинская -->
+      <offer id="9" available="true">
+        <url>https://sirius-siz.ru/maski</url>
+        <price>0.89</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>3</categoryId>
+        <picture>https://static.tildacdn.com/stor3438-3033-4831-a438-336462626163/73127285.jpg</picture>
+        <name>Маска медицинская трехслойная одноразовая</name>
+        <vendor>Сириус СИЗ</vendor>
+        <description>Трехслойная медицинская маска с фиксатором на переносице. Гипоаллергенная. Упаковка 50 шт. Для медицины, пищевой промышленности. Оптом от 10 000 шт.</description>
+        <param name="Количество слоев">3</param>
+        <param name="Цвет">Голубой</param>
+        <param name="Тип">Одноразовая</param>
+      </offer>
+
+      <!-- 10. Респиратор KN95 с клапаном -->
+      <offer id="10" available="true">
+        <url>https://sirius-siz.ru/raspirator_kh95</url>
+        <price>8</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>4</categoryId>
+        <picture>https://static.tildacdn.com/stor3331-6333-4239-b532-336662383036/21105033.jpg</picture>
+        <picture>https://static.tildacdn.com/stor6333-3731-4666-b332-653033343064/12673181.jpg</picture>
+        <name>Респиратор KN95 с клапаном</name>
+        <vendor>Сириус СИЗ</vendor>
+        <description>Респиратор KN95 с клапаном выдоха. Фильтрация 95%. 5 слоев. Для защиты от пыли, аэрозолей, вирусов. Оптом от 2000 шт.</description>
+        <param name="Класс защиты">KN95/FFP2</param>
+        <param name="Клапан">Да</param>
+        <param name="Цвет">Белый</param>
+      </offer>
+
+      <!-- 11. Респиратор KN95 без клапана -->
+      <offer id="11" available="true">
+        <url>https://sirius-siz.ru/raspirator_bez_kh95</url>
+        <price>4</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>4</categoryId>
+        <picture>https://static.tildacdn.com/stor6665-3139-4963-b935-656233663261/16563165.png</picture>
+        <picture>https://static.tildacdn.com/stor3535-3962-4135-a435-623933343637/91642951.png</picture>
+        <name>Респиратор KN95 без клапана</name>
+        <vendor>Сириус СИЗ</vendor>
+        <description>Респиратор KN95 без клапана. Фильтрация 95%. Облегченная модель. Каждый в индивидуальной упаковке. Оптом от 2000 шт.</description>
+        <param name="Класс защиты">KN95/FFP2</param>
+        <param name="Клапан">Нет</param>
+        <param name="Цвет">Белый</param>
+      </offer>
+
+      <!-- 12. Респиратор KN99 с клапаном (за уши) -->
+      <offer id="12" available="true">
+        <url>https://sirius-siz.ru/raspirator_kh99</url>
+        <price>8.20</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>4</categoryId>
+        <picture>https://static.tildacdn.com/stor3131-3731-4434-b533-626236636537/44675118.png</picture>
+        <picture>https://static.tildacdn.com/stor3038-6132-4161-a263-303431616135/94205554.png</picture>
+        <name>Респиратор KN99 с клапаном (крепление за уши)</name>
+        <vendor>Сириус СИЗ</vendor>
+        <description>Респиратор KN99 с клапаном. Фильтрация 99%. FFP3. Крепление за уши. Максимальная защита. Оптом от 2000 шт.</description>
+        <param name="Класс защиты">KN99/FFP3</param>
+        <param name="Клапан">Да</param>
+        <param name="Крепление">За уши</param>
+      </offer>
+
+      <!-- 13. Респиратор KN99 с клапаном (оголовье) -->
+      <offer id="13" available="true">
+        <url>https://sirius-siz.ru/raspirator_kh99_ogolov</url>
+        <price>8.50</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>4</categoryId>
+        <picture>https://static.tildacdn.com/stor3534-3336-4664-a231-393530373938/91704711.png</picture>
+        <picture>https://static.tildacdn.com/stor3131-3731-4434-b533-626236636537/44675118.png</picture>
+        <name>Респиратор KN99 с клапаном (оголовье)</name>
+        <vendor>Сириус СИЗ</vendor>
+        <description>Респиратор KN99 с клапаном. Фильтрация 99%. FFP3. Оголовье для длительной работы 8-12 часов. Оптом от 2000 шт.</description>
+        <param name="Класс защиты">KN99/FFP3</param>
+        <param name="Клапан">Да</param>
+        <param name="Крепление">Оголовье</param>
+      </offer>
+
+      <!-- 14. Респиратор KN99 без клапана (оголовье) -->
+      <offer id="14" available="true">
+        <url>https://sirius-siz.ru/raspirator_bez_kh99</url>
+        <price>5</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>4</categoryId>
+        <picture>https://static.tildacdn.com/stor3036-6237-4565-a530-356161343236/86930062.jpg</picture>
+        <name>Респиратор KN99 без клапана (оголовье)</name>
+        <vendor>Сириус СИЗ</vendor>
+        <description>Респиратор KN99 без клапана. Фильтрация 99%. FFP3. Оголовье. Экономичная модель. Оптом от 2000 шт.</description>
+        <param name="Класс защиты">KN99/FFP3</param>
+        <param name="Клапан">Нет</param>
+        <param name="Крепление">Оголовье</param>
+      </offer>
+
+      <!-- 15. Перчатки Wally Plastic -->
+      <offer id="15" available="true">
+        <url>https://sirius-siz.ru/perchatki_vinil</url>
+        <price>4.30</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>5</categoryId>
+        <picture>https://static.tildacdn.com/stor3135-3234-4733-a563-363230666463/48088379.jpg</picture>
+        <picture>https://static.tildacdn.com/stor3061-6166-4564-b632-663032343935/39149463.jpg</picture>
+        <name>Перчатки нитриловые/виниловые Wally Plastic</name>
+        <vendor>Wally Plastic</vendor>
+        <description>Нитриловые+виниловые перчатки. Без латекса, неопудренные, гипоаллергенные. 100 шт (50 пар). Размеры XS-XL. Цвета: розовый, синий, черный. Оптом от 2000 пар.</description>
+        <param name="Материал">Нитрил+винил</param>
+        <param name="Латекс">Нет</param>
+        <param name="Тип">Одноразовые</param>
+        <param name="Единица">пара</param>
+      </offer>
+
+      <!-- 16. Подшлемник Балаклава -->
+      <offer id="16" available="true">
+        <url>https://sirius-siz.ru/podshlemnick</url>
+        <price>8.40</price>
+        <currencyId>RUR</currencyId>
+        <categoryId>6</categoryId>
+        <picture>https://static.tildacdn.com/stor3439-3162-4538-a132-663337306137/30483113.png</picture>
+        <picture>https://static.tildacdn.com/stor3034-6336-4735-b938-316261353638/22059024.png</picture>
+        <name>Подшлемник одноразовый Балаклава</name>
+        <vendor>Сириус СИЗ</vendor>
+        <description>Одноразовый подшлемник-балаклава из спанбонда. Две эластичные тесьмы для фиксации. Универсальный размер. Белый. Оптом от 2000 шт.</description>
+        <param name="Материал">Спанбонд</param>
+        <param name="Цвет">Белый</param>
+        <param name="Тип">Одноразовый</param>
+        <param name="Размер">Универсальный</param>
+      </offer>
+    </offers>
+  </shop>
+</yml_catalog>
