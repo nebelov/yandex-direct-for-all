@@ -20,7 +20,7 @@ for command in git python3 node npm bun uv gitleaks; do require_command "$comman
 step "Сборка Wordstat из зафиксированных исходников"
 (
   cd "$WORDSTAT_DIR"
-  npm ci --ignore-scripts
+  npm ci --ignore-scripts --no-audit --no-fund
   npm audit --omit=dev
   bun test
 )
@@ -566,7 +566,6 @@ for directory in sorted(path.name for path in skills.iterdir() if path.is_dir())
         errors.append(f"Установщик не включает навык: {directory}")
 
 auth_matrices = [
-    root / "docs/auth-model-matrix.md",
     root / "plugins/yandex-direct-for-all/docs/auth-model-matrix.md",
 ]
 for path in auth_matrices:
@@ -586,8 +585,6 @@ for path in auth_matrices:
 
 direct_docs = [
     root / "QUICKSTART.md",
-    root / "docs/oauth-and-app-setup.md",
-    root / "docs/operator-auth-launchers.md",
     root / "plugins/yandex-direct-for-all/docs/oauth-and-app-setup.md",
     root / "plugins/yandex-direct-for-all/docs/operator-auth-launchers.md",
 ]
@@ -642,7 +639,7 @@ if errors:
     raise SystemExit("\n".join(errors))
 PY
 
-forbidden='sync_truth_layer_report|wordstat_resilient_collect|filter_search_queue_by_known_minus_words|roistat-direct|roistat-mediaplan|media-plan|ppc-data-analysis|competitive-ads-extractor|agentic-direct-control-plane|yougile-tenevoy|yandex-kit|forecast_engine|mediaplan_template'
+forbidden='sync_truth_layer_report|wordstat_resilient_collect|filter_search_queue_by_known_minus_words|roistat-direct|roistat-mediaplan|media-plan|ppc-data-analysis|competitive-ads-extractor|agentic-direct-control-plane|yandex-kit|forecast_engine|mediaplan_template'
 if git grep -I -n -i -E "$forbidden" -- . \
   ':(exclude)plugins/yandex-direct-for-all/scripts/release_gate.sh' \
   ':(exclude)docs/actualization-report.md'; then

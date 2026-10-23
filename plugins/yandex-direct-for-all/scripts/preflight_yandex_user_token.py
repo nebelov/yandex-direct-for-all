@@ -29,7 +29,7 @@ from yandex_auth_common import (  # noqa: E402
 
 
 ID_INFO_URL = "https://login.yandex.ru/info"
-DIRECT_URL = "https://api.direct.yandex.com/json/v501/campaigns"
+DIRECT_URL = "https://api.direct.yandex.com/json/v5/campaigns"
 METRIKA_URL = "https://api-metrika.yandex.net/management/v1/counters"
 AUDIENCE_URL = "https://api-audience.yandex.com/v1/management/segments"
 

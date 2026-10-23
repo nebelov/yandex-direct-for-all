@@ -1,10 +1,4 @@
 # Навыки
 
-1. yandex-direct-unified — обязательная единая точка входа.
-2. yandex-wordstat — методы, квоты и схемы Wordstat v2.
-3. roistat-reports-api — отчёты и сверка продаж Roistat.
-4. amocrm-api-control — доступ и сверка amoCRM.
-5. yandex-performance-ops — совместимый переходник и сценарии.
-6. yandex-direct-client-lifecycle — совместимый переходник и исследовательские шаблоны.
-
-Все пути находятся внутри plugins/yandex-direct-for-all/skills.
+Актуальная версия лежит внутри плагина: [plugins/yandex-direct-for-all/docs/skill-index.md](../plugins/yandex-direct-for-all/docs/skill-index.md).
+Она ставится пользователю вместе с плагином, поэтому пути в ней указаны от корня плагина.

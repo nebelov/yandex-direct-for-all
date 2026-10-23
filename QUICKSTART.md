@@ -1,20 +1,30 @@
 # Быстрый старт
 
-## 1. Проверка
+## 1. Установка
 
-    bash plugins/yandex-direct-for-all/scripts/release_gate.sh
+Claude Code:
 
-## 2. Подключение
+    /plugin marketplace add nebelov/yandex-direct-for-all
+    /plugin install yandex-direct-for-all@yandex-direct-for-all
 
-Безопасный просмотр плана установки:
+Codex:
+
+    codex plugin marketplace add nebelov/yandex-direct-for-all
+
+затем установить плагин в интерфейсе Codex.
+
+Ручная установка из клона: сначала план, потом то же с `--apply`:
 
     bash plugins/yandex-direct-for-all/scripts/install_bundle.sh --target both
-
-Применение:
-
     bash plugins/yandex-direct-for-all/scripts/install_bundle.sh --target both --apply
 
 Не удаляйте выданный RUN_ID, пока не проверите установленный набор. Установщик не меняет файл с пользовательскими правками.
+
+## 2. Проверка набора (для разработчиков)
+
+    bash plugins/yandex-direct-for-all/scripts/release_gate.sh
+
+Требует дополнительно bun 1.3+, gitleaks и git. Обычному пользователю этот шаг не нужен.
 
 ## 3. Авторизация Яндекс
 
@@ -24,6 +34,16 @@
     bash plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service metrika
 
 Прямой рекламодатель указывает собственный логин, представитель агентства — логин клиента-рекламодателя. Директ по умолчанию использует профиль legacy_direct, Метрика — master_yandex. Коды и токены не передаются параметрами командной строки. Готовность подтверждается только обязательным чтением соответствующей службы.
+
+Чтобы сервер MCP Директа увидел токен, создайте рядом файл доступа с правами 600:
+
+    {"environment": "production", "token_file": ".codex/auth/direct_oauth_token.json", "client_login": "логин-рекламодателя"}
+
+и запускайте Claude Code или Codex из терминала, где задано:
+
+    export YANDEX_DIRECT_ACCESS_FILE="$PWD/.codex/direct-access.json"
+
+Без файла доступа сервер работает в песочнице Директа и честно сообщает, какой переменной не хватает.
 
 ## 4. Wordstat v2
 

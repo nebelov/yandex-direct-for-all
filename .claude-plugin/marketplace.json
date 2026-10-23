@@ -1,0 +1,16 @@
+{
+  "name": "yandex-direct-for-all",
+  "description": "Навыки и MCP-серверы для Яндекс.Директа, Метрики, Wordstat v2 и Yandex Search API",
+  "owner": {
+    "name": "nebelov",
+    "url": "https://github.com/nebelov/yandex-direct-for-all"
+  },
+  "plugins": [
+    {
+      "name": "yandex-direct-for-all",
+      "source": "./plugins/yandex-direct-for-all",
+      "description": "Единый навык Директа, безопасное чтение Директа, Wordstat v2, Search API",
+      "category": "marketing"
+    }
+  ]
+}

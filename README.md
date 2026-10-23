@@ -14,28 +14,42 @@
 
 ## Установка
 
-Для работы прямо из хранилища Кодекс использует .agents/plugins/marketplace.json.
+Claude Code 2.1.275 и новее — одной командой в окне Claude Code:
 
-Для личной установки сначала посмотреть план:
+    /plugin install yandex-direct-for-all --marketplace nebelov/yandex-direct-for-all
 
-    bash plugins/yandex-direct-for-all/scripts/install_bundle.sh --target codex
-    bash plugins/yandex-direct-for-all/scripts/install_bundle.sh --target claude
+Более ранние версии Claude Code:
+
+    /plugin marketplace add nebelov/yandex-direct-for-all
+    /plugin install yandex-direct-for-all@yandex-direct-for-all
+
+Codex — добавить маркетплейс и установить плагин в интерфейсе Codex:
+
+    codex plugin marketplace add nebelov/yandex-direct-for-all
+
+Нужны `uv`, Node.js 20+ и npm: через них стартуют серверы MCP.
+
+Ручная установка из клона хранилища (если маркетплейс недоступен). Сначала план, он ничего не записывает:
+
     bash plugins/yandex-direct-for-all/scripts/install_bundle.sh --target both
 
 Если план верен:
 
     bash plugins/yandex-direct-for-all/scripts/install_bundle.sh --target both --apply
 
-Команда выдаст RUN_ID и точную команду отката. Повторный запуск обновляет только неизменённые управляемые каталоги; пользовательское изменение даёт конфликт до любой записи.
+Команда выдаст RUN_ID, точную команду отката и готовые команды регистрации MCP. Повторный запуск обновляет только неизменённые управляемые каталоги. Если навык с тем же именем у вас уже стоит вручную, установщик остановится с конфликтом: переименуйте свой каталог (например, в `yandex-direct-unified.bak`) и повторите.
 
 ## Первый запуск
 
-1. Проверить набор:
-
-       bash plugins/yandex-direct-for-all/scripts/release_gate.sh
-
-2. Открыть единый навык.
-3. Для Директа или Метрики запустить встроенную авторизацию. Код подтверждения вводится скрыто, а токен после обмена обязательно проверяется чтением целевой службы.
+1. Открыть единый навык `yandex-direct-unified`.
+2. Для Директа или Метрики запустить встроенную авторизацию (команды — в QUICKSTART.md). Токен после обмена сразу проверяется чтением службы.
+3. Подключить токен к серверу MCP Директа: задать `YANDEX_DIRECT_ACCESS_FILE` с путём к файлу доступа (формат — docs/operator-auth-launchers.md) и запустить Claude Code или Codex из того же терминала.
 4. Для Wordstat создать защищённый файл с api_key и folder_id, права 600, затем использовать collect_wordstat_wave.sh.
+
+## Для разработчиков
+
+Полная проверка выпуска (нужны также bun 1.3+, gitleaks и git):
+
+    bash plugins/yandex-direct-for-all/scripts/release_gate.sh
 
 Подробности: QUICKSTART.md, docs/component-inventory.md и docs/auth-model-matrix.md.
