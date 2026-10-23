@@ -1,10 +1,4 @@
 # Пути установки
 
-Установщик управляет только перечисленными каталогами plugins/yandex-direct-for-all, skills отдельных навыков и mcp отдельных служб.
-
-- Кодекс: ${CODEX_HOME:-$HOME/.codex}
-- Клод: ${CLAUDE_HOME:-$HOME/.claude}
-
-Без --apply выполняется только чтение и показ плана. При применении исходное состояние сохраняется в .ydfall-install/runs/RUN_ID. Если установленный файл изменён пользователем, обновление останавливается до записи.
-
-Каталог Кодекса ~/.agents/plugins/marketplace.json обновляется только для записи yandex-direct-for-all; остальные записи сохраняются.
+Актуальная версия лежит внутри плагина: [plugins/yandex-direct-for-all/docs/install-paths.md](../plugins/yandex-direct-for-all/docs/install-paths.md).
+Она ставится пользователю вместе с плагином, поэтому пути в ней указаны от корня плагина.

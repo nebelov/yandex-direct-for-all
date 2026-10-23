@@ -314,6 +314,7 @@ def run_manual(args: argparse.Namespace, config: AuthConfig, url: str) -> None:
     finish(config, exchange_code(config, read_code()))
 
 
+
 def callback_server(config: AuthConfig) -> http.server.HTTPServer:
     parsed = urllib.parse.urlparse(config.redirect_uri)
     CallbackHandler.redirect_uri = config.redirect_uri
@@ -330,9 +331,16 @@ def run_local(args: argparse.Namespace, config: AuthConfig, url: str) -> None:
     if args.print_only or args.dry_run:
         print("Незавершённое состояние сохранено для продолжения.")
         return
+    try:
+        server = callback_server(config)
+    except OSError as error:
+        port = urllib.parse.urlparse(config.redirect_uri).port
+        raise RuntimeError(
+            f"Порт {port} занят другой программой. Приложение авторизации зарегистрировано только на него: "
+            "закройте программу, которая его использует, и повторите команду."
+        ) from error
     if not args.no_browser:
         webbrowser.open(url)
-    server = callback_server(config)
     print("Ожидаю обратный вызов Яндекса. Для отмены нажмите Ctrl-C.")
     try:
         while not CallbackHandler.completed:
@@ -344,12 +352,19 @@ def run_local(args: argparse.Namespace, config: AuthConfig, url: str) -> None:
 
 def main() -> None:
     args = build_parser().parse_args()
-    config = resolve_config(args)
-    url = authorize_url(config, args.login_hint)
-    if config.mode == "local-callback":
-        run_local(args, config, url)
-    else:
-        run_manual(args, config, url)
+    try:
+        config = resolve_config(args)
+        url = authorize_url(config, args.login_hint)
+        if config.mode == "local-callback":
+            run_local(args, config, url)
+        else:
+            run_manual(args, config, url)
+    except (ValueError, RuntimeError) as error:
+        print(f"Ошибка: {error}", file=sys.stderr)
+        raise SystemExit(2) from None
+    except KeyboardInterrupt:
+        print("Авторизация отменена.", file=sys.stderr)
+        raise SystemExit(130) from None
 
 
 if __name__ == "__main__":

@@ -328,6 +328,23 @@ class ReadOnlyServerTests(unittest.TestCase):
             self.assertEqual(output.parent.stat().st_mode & 0o777, 0o700)
             self.assertNotIn(str(root_path), " ".join(str(arg) for call in printed.call_args_list for arg in call.args))
 
+    def test_access_file_supplies_token_and_scope(self):
+        with tempfile.TemporaryDirectory() as root:
+            root_path = Path(root)
+            token = root_path / "direct_oauth_token.json"
+            access = root_path / "direct-access.json"
+            token.write_text(json.dumps({"access_token": "token-from-file"}))
+            access.write_text(json.dumps({"environment": "production", "token_file": token.name, "client_login": "client"}))
+            token.chmod(0o600)
+            access.chmod(0o600)
+            with mock.patch.dict(os.environ, {"YANDEX_DIRECT_ACCESS_FILE": str(access)}, clear=True):
+                environment, value, login, _ = server.resolve_runtime()
+            self.assertEqual((environment, value, login), ("production", "token-from-file", "client"))
+            access.chmod(0o644)
+            with mock.patch.dict(os.environ, {"YANDEX_DIRECT_ACCESS_FILE": str(access)}, clear=True):
+                with self.assertRaises(ValueError):
+                    server.resolve_runtime()
+
 
 if __name__ == "__main__":
     unittest.main()

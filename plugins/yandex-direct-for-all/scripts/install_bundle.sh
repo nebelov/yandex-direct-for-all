@@ -59,7 +59,7 @@ source_for() {
 
 require_runtime_tools() {
   local missing=0
-  for command in uv node npm; do
+  for command in uv node npm rsync; do
     if ! command -v "$command" >/dev/null 2>&1; then
       echo "Не найдена обязательная команда для готовой установки: $command" >&2
       missing=1
@@ -77,7 +77,7 @@ prepare_mcp_runtime() {
     (cd "$search_dir" && uv sync --frozen)
   fi
   if [[ -d "$wordstat_dir" ]]; then
-    (cd "$wordstat_dir" && npm ci --omit=dev --ignore-scripts --prefer-offline)
+    (cd "$wordstat_dir" && npm ci --omit=dev --ignore-scripts --prefer-offline --no-audit --no-fund)
   fi
 }
 
@@ -227,9 +227,14 @@ if path.exists():
 else:
     payload = {"name": "local-marketplace", "plugins": []}
 plugins = payload.setdefault("plugins", [])
+plugin_path = Path(os.environ["PLUGIN_PATH"]).resolve()
+try:
+    plugin_source = "./" + plugin_path.relative_to(Path.home().resolve()).as_posix()
+except ValueError:
+    plugin_source = str(plugin_path)
 entry = {
     "name": "yandex-direct-for-all",
-    "source": {"source": "local", "path": os.environ["PLUGIN_PATH"]},
+    "source": {"source": "local", "path": plugin_source},
     "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
     "category": "Marketing",
 }
@@ -645,3 +650,19 @@ if [[ "$defer_commit" == 1 ]]; then
 fi
 echo "УСТАНОВЛЕНО. RUN_ID=$run_id"
 echo "Откат: $0 --target $target --rollback $run_id"
+for item in "${roots[@]}"; do
+  env_name="${item%%:*}"
+  env_root="${item#*:}"
+  echo
+  if [[ "$env_name" == claude ]]; then
+    echo "Claude Code: проще всего поставить плагин целиком — /plugin marketplace add nebelov/yandex-direct-for-all,"
+    echo "затем /plugin install yandex-direct-for-all@yandex-direct-for-all. Если ставите вручную, зарегистрируйте MCP:"
+    echo "  claude mcp add --scope user yandexDirect -- uv run --frozen --project \"$env_root/mcp/yandex-direct\" python \"$env_root/mcp/yandex-direct/server.py\" stdio"
+    echo "  claude mcp add --scope user yandexSearch -- uv run --frozen --project \"$env_root/mcp/yandex-search\" python \"$env_root/mcp/yandex-search/server.py\""
+    echo "  claude mcp add --scope user yandexWordstat -- bash \"$env_root/mcp/yandex-wordstat/start.sh\""
+  else
+    echo "Codex: плагин появится в списке маркетплейса, установите его в интерфейсе Codex."
+    echo "Если MCP не видит переменные окружения, добавьте в $env_root/config.toml блоки [mcp_servers.*]"
+    echo "с абсолютными путями из $env_root/mcp/ и env_vars (пример — docs/install-paths.md)."
+  fi
+done

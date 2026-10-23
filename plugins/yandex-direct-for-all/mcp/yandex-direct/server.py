@@ -45,7 +45,43 @@ def validate_route(service: str, method: str, version: str) -> None:
         raise ValueError("Сервис не входит в закрытый список чтения.")
 
 
+def private_json(path: Path) -> dict[str, Any]:
+    if path.stat().st_mode & 0o077:
+        raise ValueError(f"Файл {path.name} должен иметь права 0600.")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"Ожидался объект JSON: {path.name}")
+    return data
+
+
+def runtime_from_access_file(raw_path: str) -> tuple[str, str, str]:
+    """Читает файл доступа из docs/operator-auth-launchers.md: environment, token_file, client_login."""
+    access_path = Path(raw_path).expanduser().resolve()
+    access = private_json(access_path)
+    token_path = Path(str(access.get("token_file", ""))).expanduser()
+    if not token_path.is_absolute():
+        token_path = (access_path.parent / token_path).resolve()
+        if not token_path.exists():
+            token_path = (Path.cwd() / str(access.get("token_file", ""))).resolve()
+    token = str(private_json(token_path).get("access_token", "")).strip()
+    environment = str(access.get("environment", "production")).strip().lower()
+    return environment, token, str(access.get("client_login", "")).strip()
+
+
 def resolve_runtime() -> tuple[str, str, str, Path]:
+    access_file = os.environ.get("YANDEX_DIRECT_ACCESS_FILE", "").strip()
+    if access_file:
+        environment, token, login = runtime_from_access_file(access_file)
+        if environment not in {"sandbox", "production"}:
+            raise ValueError("environment в файле доступа должен быть sandbox или production.")
+        if not token:
+            raise ValueError("В файле токена из файла доступа нет access_token.")
+        if not login:
+            raise ValueError("В файле доступа не задан client_login: чтение без явной области клиента запрещено.")
+        output = Path(
+            os.environ.get("YANDEX_DIRECT_OUTPUT_DIR", str(Path.cwd() / "artifacts" / "yandex-direct"))
+        ).expanduser().resolve()
+        return environment, token, login, output
     environment = os.environ.get("YANDEX_DIRECT_ENVIRONMENT", "sandbox").strip().lower()
     if environment not in {"sandbox", "production"}:
         raise ValueError("YANDEX_DIRECT_ENVIRONMENT должен быть sandbox или production.")
