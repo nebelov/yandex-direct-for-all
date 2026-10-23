@@ -179,11 +179,11 @@ def cmd_export(args: argparse.Namespace) -> dict:
         fields = [f for f in fields if f.upper() not in PERSONAL]
     if "ID" not in fields:
         fields = ["ID", *fields]  # обход по ID и проверка полноты без ID невозможны
-    base = webhook(args, telephony=args.entity == "call")
     out = Path(args.out)
     for stale in (out / f"{args.entity}.json", out / f"{args.entity}.manifest.json"):
         if stale.exists():
-            stale.unlink()  # прошлая выгрузка не должна остаться на месте, если эта упадёт
+            stale.unlink()  # прошлая выгрузка не должна остаться на месте, если эта упадёт на любом шаге
+    base = webhook(args, telephony=args.entity == "call")
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
     period = {f">={date_field}": args.since, f"<{date_field}": args.until}
     if args.entity == "call":
