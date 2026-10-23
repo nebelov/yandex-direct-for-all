@@ -22,10 +22,12 @@
 ```json
 {
   "environment": "production",
-  "token_file": ".codex/auth/direct_oauth_token.json",
+  "token_file": "auth/direct_oauth_token.json",
   "client_login": "логин-рекламодателя"
 }
 ```
+
+Файл кладите в `.codex/direct-access.json`: относительный `token_file` считается от папки самого файла доступа, поэтому `auth/direct_oauth_token.json` указывает на `.codex/auth/direct_oauth_token.json` при любой текущей папке.
 
 Прямой рекламодатель указывает в `client_login` собственный логин. Представитель
 агентства указывает логин клиента-рекламодателя. Без явной области чтение

@@ -18,7 +18,7 @@ Claude Code 2.1.275 и новее — одной командой в окне Cl
 
     /plugin install yandex-direct-for-all --marketplace nebelov/yandex-direct-for-all
 
-Более ранние версии Claude Code:
+Claude Code 2.1.78–2.1.274:
 
     /plugin marketplace add nebelov/yandex-direct-for-all
     /plugin install yandex-direct-for-all@yandex-direct-for-all

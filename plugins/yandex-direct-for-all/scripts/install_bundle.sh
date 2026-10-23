@@ -71,13 +71,13 @@ require_runtime_tools() {
 prepare_mcp_runtime() {
   local direct_dir="$1" search_dir="$2" wordstat_dir="$3"
   if [[ -d "$direct_dir" ]]; then
-    (cd "$direct_dir" && uv sync --frozen)
+    (cd "$direct_dir" && uv sync --frozen) || return 1
   fi
   if [[ -d "$search_dir" ]]; then
-    (cd "$search_dir" && uv sync --frozen)
+    (cd "$search_dir" && uv sync --frozen) || return 1
   fi
   if [[ -d "$wordstat_dir" ]]; then
-    (cd "$wordstat_dir" && npm ci --omit=dev --ignore-scripts --prefer-offline --no-audit --no-fund)
+    (cd "$wordstat_dir" && npm ci --omit=dev --ignore-scripts --prefer-offline --no-audit --no-fund) || return 1
   fi
 }
 

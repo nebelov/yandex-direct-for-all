@@ -60,9 +60,9 @@ def runtime_from_access_file(raw_path: str) -> tuple[str, str, str]:
     access = private_json(access_path)
     token_path = Path(str(access.get("token_file", ""))).expanduser()
     if not token_path.is_absolute():
-        token_path = (access_path.parent / token_path).resolve()
-        if not token_path.exists():
-            token_path = (Path.cwd() / str(access.get("token_file", ""))).resolve()
+        token_path = (access_path.parent / token_path).resolve()  # всегда от папки файла доступа
+    if not token_path.is_file():
+        raise ValueError("Файл токена из файла доступа не найден: путь считается от папки файла доступа.")
     token = str(private_json(token_path).get("access_token", "")).strip()
     environment = str(access.get("environment", "production")).strip().lower()
     return environment, token, str(access.get("client_login", "")).strip()
