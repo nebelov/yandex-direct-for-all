@@ -138,6 +138,13 @@ class Bitrix24ReadTests(unittest.TestCase):
                 b24.main(["export", "--entity", "lead", "--since", "2026-10-01", "--until", "2026-11-01", "--out", root])
             self.assertFalse(Path(root, "lead.json").exists())
 
+    def test_missing_webhook_still_removes_old_export(self):
+        with tempfile.TemporaryDirectory() as root, mock.patch.dict(os.environ, {"BITRIX24_WEBHOOK_URL": ""}):
+            Path(root, "lead.manifest.json").write_text('{"complete": true}')
+            with self.assertRaises(ValueError):
+                b24.main(["export", "--entity", "lead", "--since", "2026-10-01", "--until", "2026-11-01", "--out", root])
+            self.assertFalse(Path(root, "lead.manifest.json").exists())
+
     def test_telephony_webhook_must_be_https(self):
         with mock.patch.dict(os.environ, {"BITRIX24_TELEPHONY_WEBHOOK_URL": "http://example.bitrix24.ru/rest/1/x/"}):
             with self.assertRaises(ValueError):
