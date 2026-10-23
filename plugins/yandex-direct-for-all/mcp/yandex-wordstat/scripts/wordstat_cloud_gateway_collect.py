@@ -195,34 +195,47 @@ def validate_phrase_rows(rows: list[Any], field: str) -> None:
 def validate_top_response(payload: Any) -> None:
     item = require_object(payload, "topRequests response")
     # ProtoJSON опускает нулевой totalCount и пустые массивы: {} — корректный нулевой ответ.
-    total = item.get("totalCount", 0)
-    if not is_int_like(total) or int(total) < 0:
-        raise ValueError("totalCount must be a non-negative integer")
+    nonnegative_int(item.setdefault("totalCount", "0"), "totalCount")
     for field in ("results", "associations"):
-        rows = item.get(field, [])
+        rows = item.setdefault(field, [])
         if not isinstance(rows, list):
             raise ValueError(f"{field} must be an array")
         validate_phrase_rows(rows, field)
 
 
+def nonnegative_int(value: Any, name: str) -> None:
+    if not is_int_like(value) or int(value) < 0:
+        raise ValueError(f"{name} must be a non-negative integer")
+
+
 def validate_dynamics_response(payload: Any) -> None:
     item = require_object(payload, "dynamics response")
-    for index, row in enumerate(require_list(item, "results")):
+    # ProtoJSON опускает пустые массивы и нулевые числа: подставляем значения по умолчанию.
+    rows = item.setdefault("results", [])
+    if not isinstance(rows, list):
+        raise ValueError("results must be an array")
+    for index, row in enumerate(rows):
         value = require_object(row, f"results[{index}]")
         if not isinstance(value.get("date"), str):
             raise ValueError(f"results[{index}].date must be a timestamp")
-        if not is_int_like(value.get("count")) or not is_number_like(value.get("share")):
-            raise ValueError(f"results[{index}] must contain count and share")
+        nonnegative_int(value.setdefault("count", "0"), f"results[{index}].count")
+        if not is_number_like(value.setdefault("share", 0)) or float(value["share"]) < 0:
+            raise ValueError(f"results[{index}] must contain a non-negative share")
 
 
 def validate_regions_response(payload: Any) -> None:
     item = require_object(payload, "regions response")
-    for index, row in enumerate(require_list(item, "results")):
+    rows = item.setdefault("results", [])
+    if not isinstance(rows, list):
+        raise ValueError("results must be an array")
+    for index, row in enumerate(rows):
         value = require_object(row, f"results[{index}]")
-        if not isinstance(value.get("region"), str) or not is_int_like(value.get("count")):
-            raise ValueError(f"results[{index}] must contain region and count")
-        if not is_number_like(value.get("share")) or not is_number_like(value.get("affinityIndex")):
-            raise ValueError(f"results[{index}] must contain share and affinityIndex")
+        if not isinstance(value.get("region"), str):
+            raise ValueError(f"results[{index}] must contain region")
+        nonnegative_int(value.setdefault("count", "0"), f"results[{index}].count")
+        for field in ("share", "affinityIndex"):
+            if not is_number_like(value.setdefault(field, 0)) or float(value[field]) < 0:
+                raise ValueError(f"results[{index}] must contain a non-negative {field}")
 
 
 def validate_regions_tree_response(payload: Any) -> None:
