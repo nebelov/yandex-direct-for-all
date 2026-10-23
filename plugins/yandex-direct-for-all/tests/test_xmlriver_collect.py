@@ -223,6 +223,21 @@ class XmlriverCollectTests(unittest.TestCase):
                                                         self.plan("--ai"), "--max-cost-rub", "1"))
         self.assertEqual(transport.calls, [])
 
+    def test_negative_ai_price_is_refused(self):
+        transport = Transport({})
+        with mock.patch.object(xc, "urlopen", transport), self.assertRaises(ValueError):
+            self.run_cmd("collect", *self.serp_args("--ai", "--ai-price-per-1000", "-500", "--approve-plan-sha256",
+                                                    self.plan("--ai"), "--max-cost-rub", "1"))
+        self.assertEqual(transport.calls, [])
+
+    def test_export_with_unfinished_jobs_is_incomplete(self):
+        transport = Transport({"купить стол": [serp_xml("купить стол", ["a.ru"])]})
+        with mock.patch.object(xc, "urlopen", transport):
+            self.run_cmd("collect", *self.serp_args("--approve-plan-sha256", self.plan(), "--max-cost-rub", "1",
+                                                    "--max-new", "1"))
+        code, result = self.run_cmd("export", *self.serp_args())
+        self.assertEqual((code, result["complete"], result["unfinished_jobs"]), (2, False, 1))
+
     def test_new_requests_counts_only_started(self):
         stop = Transport({"купить стол": [error_xml("115")], "купить стул": [serp_xml("купить стул", ["c.ru"])]})
         with mock.patch.object(xc, "urlopen", stop):
@@ -274,6 +289,18 @@ class XmlriverCollectTests(unittest.TestCase):
         args, _ = self.wordstat_run([b"{}"])
         state = self.run_cmd("plan", *args)[1]["status"]
         self.assertEqual((state["success"], state["error"]), (0, 1))
+
+    def test_words_job_needs_popular_not_graph(self):
+        args, _ = self.wordstat_run([b'{"graph": {}}'])
+        state = self.run_cmd("plan", *args)[1]["status"]
+        self.assertEqual((state["success"], state["error"]), (0, 1))
+
+    def test_bad_dynamics_point_marks_partial(self):
+        history = json.dumps({"graph": {"tableData": [{"absoluteValue": "1"}, {"startTimestamp": 1715547600000,
+                                                                                "absoluteValue": "x"}]}}).encode()
+        args, _ = self.wordstat_run([history], pagetypes="history")
+        code, result = self.run_cmd("export", *args)
+        self.assertEqual((code, result["row_errors"], result["complete"]), (2, 2, False))
 
     def test_wordstat_row_error_marks_partial_and_fails_export(self):
         words = json.dumps({"popular": [{"text": "стол", "value": "abc"}, {"text": "стул", "value": "5"}]}).encode()
