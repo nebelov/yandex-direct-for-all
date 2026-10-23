@@ -71,7 +71,7 @@ Codex:
 
 Сбор:
 
-    plugins/yandex-direct-for-all/scripts/collect_wordstat_wave.sh --masks-file masks.tsv --output-dir result --config /защищённый/путь.json
+    plugins/yandex-direct-for-all/scripts/collect_wordstat_wave.sh --provider yandex-cloud --masks-file masks.tsv --output-dir result --config /защищённый/путь.json
 
 Wordstat и Yandex Search API используют ключ Yandex Cloud, а не пользовательскую авторизацию Директа.
 

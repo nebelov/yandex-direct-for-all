@@ -179,13 +179,70 @@ class XmlriverCollectTests(unittest.TestCase):
         self.assertEqual(len(stop.calls), 1)
 
     def test_rank_chain_needs_previous_page_without_overlap(self):
+        row = {"page": 1, "engine": "yandex", "_series": "q"}
         pages = {("yandex", "q", 0): ([f"u{i}" for i in range(10)], "", 0),
                  ("yandex", "q", 1): (["u9", "v1"], "", 0)}
-        self.assertEqual(xc.rank_state(pages, {"page": 1, "engine": "yandex"}), "url_overlap_between_pages")
+        self.assertEqual(xc.rank_state(pages, row), "url_overlap_between_pages")
         pages[("yandex", "q", 1)] = (["v1"], "", 0)
-        self.assertEqual(xc.rank_state(pages, {"page": 1, "engine": "yandex"}), "verified")
+        self.assertEqual(xc.rank_state(pages, row), "verified")
         del pages[("yandex", "q", 0)]
-        self.assertEqual(xc.rank_state(pages, {"page": 1, "engine": "yandex"}), "previous_page_missing_or_not_successful")
+        self.assertEqual(xc.rank_state(pages, row), "previous_page_missing_or_not_successful")
+
+    def test_rank_state_does_not_borrow_other_query_pages(self):
+        pages = {("yandex", "A", 0): ([f"u{i}" for i in range(10)], "", 0), ("yandex", "A", 1): (["x"], "", 0),
+                 ("yandex", "B", 1): (["y"], "", 0)}
+        self.assertEqual(xc.rank_state(pages, {"page": 1, "engine": "yandex", "_series": "B"}),
+                         "previous_page_missing_or_not_successful")
+
+    def test_claim_is_atomic_and_parallel_collect_is_locked(self):
+        run = self.root / "run"
+        db = xc.open_db(run, create=True)
+        job = {"job_key": "k1", "kind": "serp", "engine": "yandex", "params": {}}
+        db.execute("INSERT INTO jobs(job_key,kind,engine,spec_json,status) VALUES('k1','serp','yandex','{}','pending')")
+        db.commit()
+        self.assertIsNotNone(xc.start_attempt(db, run, job))
+        self.assertIsNone(xc.start_attempt(db, run, job))
+        held = open(run / ".collect.lock", "w")
+        xc.fcntl.flock(held, xc.fcntl.LOCK_EX | xc.fcntl.LOCK_NB)
+        transport = Transport({})
+        try:
+            with mock.patch.object(xc, "urlopen", transport), self.assertRaises(ValueError):
+                self.run_cmd("collect", *self.serp_args("--approve-plan-sha256", self.plan(), "--max-cost-rub", "1"))
+        finally:
+            held.close()
+        self.assertEqual(transport.calls, [])
+
+    def test_ai_needs_price_and_counts_in_cap(self):
+        transport = Transport({})
+        with mock.patch.object(xc, "urlopen", transport):
+            with self.assertRaises(ValueError):
+                self.run_cmd("collect", *self.serp_args("--ai", "--approve-plan-sha256", self.plan("--ai"),
+                                                        "--max-cost-rub", "1"))
+            with self.assertRaises(ValueError):  # 2 x (0.025 + 0.5) > 1
+                self.run_cmd("collect", *self.serp_args("--ai", "--ai-price-per-1000", "500", "--approve-plan-sha256",
+                                                        self.plan("--ai"), "--max-cost-rub", "1"))
+        self.assertEqual(transport.calls, [])
+
+    def test_new_requests_counts_only_started(self):
+        stop = Transport({"купить стол": [error_xml("115")], "купить стул": [serp_xml("купить стул", ["c.ru"])]})
+        with mock.patch.object(xc, "urlopen", stop):
+            code, result = self.run_cmd("collect", *self.serp_args("--approve-plan-sha256", self.plan(),
+                                                                   "--max-cost-rub", "1"))
+        self.assertEqual((code, result["new_requests"], result["queued"]), (3, 1, 2))
+
+    def test_export_geography_and_engine_split(self):
+        (self.root / "jobs.tsv").write_text("job_id\tsearch_query\nj1\tкупить стол\n", encoding="utf-8")
+        transport = Transport({"купить стол": [serp_xml("купить стол", ["a.ru"]), serp_xml("купить стол", ["g.com"])]})
+        with mock.patch.object(xc, "urlopen", transport):
+            self.run_cmd("collect", *self.serp_args("--engine", "both", "--approve-plan-sha256",
+                                                    self.plan("--engine", "both"), "--max-cost-rub", "1"))
+        code, exported = self.run_cmd("export", *self.serp_args("--engine", "both"))
+        self.assertEqual(sorted(exported["files"])[:2], ["ad_rows_google.tsv", "ad_rows_yandex.tsv"])
+        self.assertFalse((self.root / "run" / "serp_results.tsv").exists())
+        yandex = (self.root / "run" / "serp_results_yandex.tsv").read_text(encoding="utf-8").splitlines()
+        header, first = yandex[0].split("\t"), yandex[1].split("\t")
+        self.assertEqual((first[header.index("region_id")], first[header.index("search_region")]), ("225", "225"))
+        self.assertNotIn("g.com", "\n".join(yandex))
 
     def test_wordstat_normalization_without_history_has_no_total(self):
         (self.root / "masks.txt").write_text("купить стол\n", encoding="utf-8")
@@ -201,6 +258,47 @@ class XmlriverCollectTests(unittest.TestCase):
         payload = json.loads(files[0].read_text(encoding="utf-8"))
         self.assertNotIn("totalCount", payload)
         self.assertEqual(payload["results"][0], {"phrase": "купить стол", "count": 1234, "phrase_raw": "+купить +стол"})
+
+    def wordstat_run(self, answers: list[bytes], pagetypes: str = "words") -> tuple[list[str], Transport]:
+        (self.root / "masks.txt").write_text("купить стол\n", encoding="utf-8")
+        transport = Transport({"купить стол": answers})
+        args = ["--kind", "wordstat", "--masks-file", str(self.root / "masks.txt"), "--output-dir",
+                str(self.root / "runw"), "--pagetypes", pagetypes, "--workers", "1",
+                "--start", "01.01.2024", "--end", "31.05.2024"]
+        sha = self.run_cmd("plan", *args)[1]["plan_sha256"]
+        with mock.patch.object(xc, "urlopen", transport):
+            self.run_cmd("collect", *args, "--approve-plan-sha256", sha, "--max-cost-rub", "1")
+        return args, transport
+
+    def test_wordstat_bad_schema_is_error_not_success(self):
+        args, _ = self.wordstat_run([b"{}"])
+        state = self.run_cmd("plan", *args)[1]["status"]
+        self.assertEqual((state["success"], state["error"]), (0, 1))
+
+    def test_wordstat_row_error_marks_partial_and_fails_export(self):
+        words = json.dumps({"popular": [{"text": "стол", "value": "abc"}, {"text": "стул", "value": "5"}]}).encode()
+        args, _ = self.wordstat_run([words])
+        stale = self.root / "runw" / "raw_bundle" / "top_requests_old.json"
+        stale.parent.mkdir(parents=True, exist_ok=True)
+        stale.write_text("{}", encoding="utf-8")
+        code, result = self.run_cmd("export", *args)
+        manifest = json.loads((self.root / "runw" / "raw_bundle" / "_manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual((code, result["complete"], manifest[0]["status"]), (2, False, "partial"))
+        self.assertFalse(stale.exists())
+
+    def test_dynamics_dates_are_moscow_and_renderer_uses_manifest(self):
+        history = json.dumps({"graph": {"tableData": [{"startTimestamp": 1715547600000, "absoluteValue": "10",
+                                                       "value": "0,1"}]}}).encode()
+        args, _ = self.wordstat_run([history], pagetypes="history")
+        self.run_cmd("export", *args)
+        bundle = self.root / "runw" / "raw_bundle"
+        render = Path(__file__).resolve().parents[1] / "skills" / "yandex-performance-ops" / "scripts" / "render_wordstat_seasonality.py"
+        spec = importlib.util.spec_from_file_location("render_seasonality", render)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        found = module.resolve_raw_path(self.root, str(bundle), "купить стол")
+        payload = json.loads(found.read_text(encoding="utf-8"))
+        self.assertEqual(payload["dynamics"][0]["date"], "2024-05-13")
 
     def test_history_range_rejects_short_or_today(self):
         args = xc.build_parser().parse_args(["plan", "--kind", "wordstat", "--period", "month",
