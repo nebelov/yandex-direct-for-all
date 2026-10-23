@@ -47,7 +47,10 @@ ENTITIES = {
 
 def webhook(args: argparse.Namespace, telephony: bool = False) -> str:
     if telephony and os.environ.get("BITRIX24_TELEPHONY_WEBHOOK_URL"):
-        return os.environ["BITRIX24_TELEPHONY_WEBHOOK_URL"].rstrip("/") + "/"
+        url = os.environ["BITRIX24_TELEPHONY_WEBHOOK_URL"]
+        if not url.startswith("https://") or "/rest/" not in url:
+            raise ValueError("BITRIX24_TELEPHONY_WEBHOOK_URL должен начинаться с https:// и содержать /rest/.")
+        return url.rstrip("/") + "/"
     url = os.environ.get("BITRIX24_WEBHOOK_URL", "")
     if not url and args.access_file:
         path = Path(args.access_file).expanduser()
@@ -57,6 +60,15 @@ def webhook(args: argparse.Namespace, telephony: bool = False) -> str:
     if not url.startswith("https://") or "/rest/" not in url:
         raise ValueError("Нет адреса вебхука: задайте BITRIX24_WEBHOOK_URL или --access-file.")
     return url.rstrip("/") + "/"
+
+
+def mask(text: str, base: str) -> str:
+    """Убирает из текста ошибки адрес вебхука и его секретную часть пути."""
+    secret = base.split("/rest/", 1)[-1].strip("/")
+    for part in [base, base.rstrip("/"), secret, *[p for p in secret.split("/") if len(p) >= 6]]:
+        if part:
+            text = text.replace(part, "***")
+    return text
 
 
 def call(base: str, method: str, params: dict | None = None, retries: int = 5) -> dict:
@@ -83,12 +95,12 @@ def call(base: str, method: str, params: dict | None = None, retries: int = 5) -
                 text = f"{detail.get('error')}: {detail.get('error_description', '')}"
             except ValueError:
                 text = text[:200]
-            raise RuntimeError(f"{method}: HTTP {error.code} {text}") from None
+            raise RuntimeError(mask(f"{method}: HTTP {error.code} {text}", base)) from None
         except (urllib.error.URLError, TimeoutError, OSError):
             time.sleep(2 * (attempt + 1))
             continue
         if "error" in data:
-            raise RuntimeError(f"{method}: {data.get('error')} {data.get('error_description', '')}")
+            raise RuntimeError(mask(f"{method}: {data.get('error')} {data.get('error_description', '')}", base))
         return data
     raise RuntimeError(f"{method}: не ответил после {retries} попыток")
 
@@ -117,7 +129,9 @@ def list_paged(base: str, method: str, params: dict) -> tuple[list[dict], int]:
     while True:
         data = call(base, method, {**params, "start": start})
         result = data["result"]
-        rows.extend(result.get("items", result) if isinstance(result, dict) else result)
+        if isinstance(result, dict):
+            result = result.get("items", result.get("categories", result))
+        rows.extend(result)
         pages += 1
         if "next" not in data:
             return rows, pages
@@ -141,7 +155,7 @@ def cmd_probe(args: argparse.Namespace) -> dict:
 
 def cmd_schema(args: argparse.Namespace) -> dict:
     base, out = webhook(args), Path(args.out)
-    categories = call(base, "crm.category.list", {"entityTypeId": 2})["result"].get("categories", [])
+    categories = list_paged(base, "crm.category.list", {"entityTypeId": 2})[0]
     statuses = list_paged(base, "crm.status.list", {})[0]
     snapshot = {"deal_categories": categories, "statuses": statuses,
                 "lead_fields": call(base, "crm.lead.fields")["result"],
@@ -149,7 +163,8 @@ def cmd_schema(args: argparse.Namespace) -> dict:
                 "lead_userfields": list_paged(base, "crm.lead.userfield.list", {})[0],
                 "deal_userfields": list_paged(base, "crm.deal.userfield.list", {})[0]}
     save(out / "schema.json", snapshot)
-    return {"file": str(out / "schema.json"), "deal_categories": len(categories) + 1,
+    # crm.category.list уже содержит основную воронку (isDefault=Y), единица не прибавляется.
+    return {"file": str(out / "schema.json"), "deal_categories": len(categories),
             "statuses": len(statuses), "status_groups": sorted({s.get("ENTITY_ID") for s in statuses})}
 
 
@@ -159,6 +174,8 @@ def cmd_export(args: argparse.Namespace) -> dict:
         fields = [f.strip() for f in args.fields.split(",") if f.strip()]
     if not args.include_personal_data:
         fields = [f for f in fields if f not in PERSONAL]
+    if "ID" not in fields:
+        fields = ["ID", *fields]  # обход по ID и проверка полноты без ID невозможны
     base = webhook(args, telephony=args.entity == "call")
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
     period = {f">={date_field}": args.since, f"<{date_field}": args.until}
@@ -169,18 +186,20 @@ def cmd_export(args: argparse.Namespace) -> dict:
                                                 "filter": period, "select": fields})
     else:
         rows, pages = list_by_id(base, method, {"filter": period, "select": fields})
-    if not args.include_personal_data:
-        rows = [{k: v for k, v in row.items() if k not in PERSONAL} for row in rows]
-    ids = [str(row.get("ID") or row.get("id")) for row in rows]
+    # Сохраняются только объявленные поля: метод может вернуть всё (комментарии, ссылки на записи звонков).
+    keep = {f.upper() for f in fields} | (PERSONAL if args.include_personal_data else set())
+    rows = [{k: v for k, v in row.items() if k.upper() in keep} for row in rows]
+    ids = [str(row.get("ID") or row.get("id") or "") for row in rows]
+    complete = all(ids) and len(ids) == len(set(ids))
     manifest = {"entity": args.entity, "method": method, "filter": period, "fields": fields, "rows": len(rows),
-                "unique_ids": len(set(ids)), "pages": pages, "complete": len(ids) == len(set(ids)),
+                "unique_ids": len(set(ids)), "pages": pages, "complete": complete,
                 "started_utc": started, "finished_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "timezone_note": "даты REST — в часовом поясе портала", "personal_data": args.include_personal_data}
     out = Path(args.out)
     save(out / f"{args.entity}.json", rows)
     save(out / f"{args.entity}.manifest.json", manifest)
     if not manifest["complete"]:
-        raise RuntimeError("В выгрузке повторяются ID: она неполная, отчёт по ней строить нельзя.")
+        raise RuntimeError("В выгрузке повторяются или отсутствуют ID: она неполная, отчёт по ней строить нельзя.")
     return manifest
 
 
