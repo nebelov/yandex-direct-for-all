@@ -94,10 +94,15 @@ Codex — добавить маркетплейс и установить пла
 
 ### Директ
 
-Найти установленный плагин (после установки из маркетплейса; при работе из клона — путь к `plugins/yandex-direct-for-all` в клоне):
+Найти установленный плагин после установки из маркетплейса:
 
     AUTH="$(find ~/.claude/plugins ~/.codex/plugins -path '*yandex-direct-for-all*' -name start_yandex_user_auth.sh 2>/dev/null | head -1)"
     YDFA="$(dirname "$(dirname "$AUTH")")"
+
+При работе из клона хранилища:
+
+    YDFA="/абсолютный/путь/к/клону/plugins/yandex-direct-for-all"
+    AUTH="$YDFA/scripts/start_yandex_user_auth.sh"
 
 Войти:
 
@@ -115,7 +120,7 @@ Codex — добавить маркетплейс и установить пла
 
 Без файла доступа сервер по умолчанию обращается к песочнице Директа. Вместо файла можно задать переменные `YANDEX_DIRECT_ENVIRONMENT`, `YANDEX_DIRECT_PRODUCTION_READ_TOKEN` и `YANDEX_DIRECT_CLIENT_LOGIN`.
 
-Отчёты сервер сохраняет в служебную папку плагина. Чтобы они лежали в проекте клиента, задайте:
+Куда сервер сохраняет отчёты по умолчанию, зависит от способа запуска: в Claude Code — в служебную папку плагина, в Codex и при ручной регистрации — в `artifacts/yandex-direct` относительно папки, из которой сервер запущен. Чтобы отчёты всегда лежали в проекте клиента, задайте:
 
     export YANDEX_DIRECT_OUTPUT_DIR="$PWD/.codex/direct-output"
 
