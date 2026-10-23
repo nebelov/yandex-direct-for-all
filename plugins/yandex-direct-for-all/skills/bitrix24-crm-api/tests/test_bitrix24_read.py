@@ -107,6 +107,37 @@ class Bitrix24ReadTests(unittest.TestCase):
             b24.call(HOOK, "scope")
         self.assertNotIn("synthetic-code", str(caught.exception))
 
+    def test_masking_happens_before_truncation(self):
+        def leak(request, timeout=None):
+            body = ("x" * 190 + " " + HOOK).encode()  # граница обрезки внутри адреса
+            raise urllib.error.HTTPError(request.full_url, 500, "err", {}, io.BytesIO(body))
+        with mock.patch.object(b24.urllib.request, "urlopen", leak), self.assertRaises(RuntimeError) as caught:
+            b24.call(HOOK, "scope")
+        self.assertNotIn("synthetic", str(caught.exception))
+
+    def test_personal_fields_need_flag_and_explicit_name(self):
+        portal = Portal()
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(b24.urllib.request, "urlopen", portal):
+            b24.main(["export", "--entity", "call", "--fields", "phone_number,CALL_START_DATE", "--since", "2026-10-01",
+                      "--until", "2026-11-01", "--out", root])
+            without_flag = json.loads(Path(root, "call.json").read_text())
+            b24.main(["export", "--entity", "call", "--fields", "ID", "--include-personal-data", "--since",
+                      "2026-10-01", "--until", "2026-11-01", "--out", root])
+            flag_but_not_named = json.loads(Path(root, "call.json").read_text())
+        self.assertNotIn("PHONE_NUMBER", without_flag[0])
+        self.assertEqual(set(flag_but_not_named[0]), {"ID"})
+
+    def test_row_without_id_on_full_page_fails_and_removes_old_export(self):
+        broken = [dict(x) for x in LEADS[:50]]
+        broken[-1].pop("ID")
+        def portal(request, timeout=None):
+            return Response(json.dumps({"result": broken}).encode())
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(b24.urllib.request, "urlopen", portal):
+            Path(root, "lead.json").write_text("[]")
+            with self.assertRaises(RuntimeError):
+                b24.main(["export", "--entity", "lead", "--since", "2026-10-01", "--until", "2026-11-01", "--out", root])
+            self.assertFalse(Path(root, "lead.json").exists())
+
     def test_telephony_webhook_must_be_https(self):
         with mock.patch.dict(os.environ, {"BITRIX24_TELEPHONY_WEBHOOK_URL": "http://example.bitrix24.ru/rest/1/x/"}):
             with self.assertRaises(ValueError):
