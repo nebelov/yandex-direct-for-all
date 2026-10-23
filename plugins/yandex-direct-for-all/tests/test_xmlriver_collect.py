@@ -302,6 +302,13 @@ class XmlriverCollectTests(unittest.TestCase):
         code, result = self.run_cmd("export", *args)
         self.assertEqual((code, result["row_errors"], result["complete"]), (2, 2, False))
 
+    def test_non_finite_share_is_row_error(self):
+        history = json.dumps({"graph": {"tableData": [{"startTimestamp": 1715547600000, "absoluteValue": "1",
+                                                       "value": "NaN"}]}}).encode()
+        args, _ = self.wordstat_run([history], pagetypes="history")
+        code, result = self.run_cmd("export", *args)
+        self.assertEqual((code, result["row_errors"]), (2, 1))
+
     def test_wordstat_row_error_marks_partial_and_fails_export(self):
         words = json.dumps({"popular": [{"text": "стол", "value": "abc"}, {"text": "стул", "value": "5"}]}).encode()
         args, _ = self.wordstat_run([words])

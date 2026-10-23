@@ -19,6 +19,7 @@ import csv
 import fcntl
 import hashlib
 import json
+import math
 import os
 import re
 import sqlite3
@@ -645,6 +646,13 @@ def wordstat_number(value) -> int:
     return int(text)
 
 
+def finite_share(value) -> float:
+    share = float(str(value).replace(",", "."))
+    if not math.isfinite(share) or share < 0:
+        raise ValueError(f"доля не конечное неотрицательное число: {value!r}")
+    return share
+
+
 def export_wordstat(db: sqlite3.Connection, run: Path, jobs: list[dict]) -> dict:
     bundle = run / "raw_bundle"
     bundle.mkdir(mode=0o700, exist_ok=True)
@@ -683,7 +691,7 @@ def export_wordstat(db: sqlite3.Connection, run: Path, jobs: list[dict]) -> dict
                 try:
                     points.append({"date": datetime.fromtimestamp(int(point["startTimestamp"]) / 1000, MSK).date().isoformat(),
                                    "count": wordstat_number(point.get("absoluteValue")),
-                                   "share": float(str(point.get("value", "0")).replace(",", "."))})
+                                   "share": finite_share(point.get("value", "0"))})
                 except (KeyError, TypeError, ValueError, OverflowError, OSError) as error:
                     row_errors.append({"mask": key[0], "region": key[1], "field": "graph", "text": json.dumps(point, ensure_ascii=False)[:200],
                                        "error": f"{type(error).__name__}: {error}"})
