@@ -45,7 +45,7 @@ Codex — добавить маркетплейс и установить пла
 1. Открыть единый навык `yandex-direct-unified`.
 2. Для Директа или Метрики запустить встроенную авторизацию (команды — в QUICKSTART.md). Токен после обмена сразу проверяется чтением службы.
 3. Подключить токен к серверу MCP Директа: задать `YANDEX_DIRECT_ACCESS_FILE` с путём к файлу доступа (формат — docs/operator-auth-launchers.md) и запустить Claude Code или Codex из того же терминала.
-4. Для Wordstat создать защищённый файл с api_key и folder_id, права 600, затем использовать collect_wordstat_wave.sh.
+4. Для Wordstat создать защищённый файл с api_key и folder_id, права 600, затем использовать `collect_wordstat_wave.sh --provider yandex-cloud --config <файл>`.
 
 ## Для разработчиков
 
