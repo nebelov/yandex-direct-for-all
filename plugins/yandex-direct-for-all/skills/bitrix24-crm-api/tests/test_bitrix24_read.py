@@ -45,6 +45,15 @@ class Portal:
             return Response(json.dumps({"result": ["crm", "user"]}).encode())
         if method == "crm.status.entity.types":
             return Response(json.dumps({"result": [{"ID": "STATUS"}]}).encode())
+        if method == "crm.category.list":
+            return Response(json.dumps({"result": {"categories": [{"id": 0, "isDefault": "Y"}]}, "total": 1}).encode())
+        if method in ("crm.status.list", "crm.lead.userfield.list", "crm.deal.userfield.list"):
+            return Response(json.dumps({"result": []}).encode())
+        if method in ("crm.lead.fields", "crm.deal.fields"):
+            return Response(json.dumps({"result": {}}).encode())
+        if method == "voximplant.statistic.get":
+            return Response(json.dumps({"result": [{"ID": "1", "CALL_START_DATE": "x", "COMMENT": "Иван", "CALL_RECORD_URL":
+                                                    "https://rec", "PHONE_NUMBER": "+7000"}]}).encode())
         if method == "crm.lead.list":
             after = int(params["filter"][">ID"])
             page = [dict(x) for x in LEADS if int(x["ID"]) > after][:50]
@@ -89,6 +98,38 @@ class Bitrix24ReadTests(unittest.TestCase):
         self.assertEqual(portal.calls[:2], ["scope", "scope"])
         self.assertNotIn("synthetic-code", out.getvalue())
         self.assertIn('"crm"', out.getvalue())
+
+    def test_error_text_never_contains_webhook(self):
+        def leak(request, timeout=None):
+            raise urllib.error.HTTPError(request.full_url, 404, "nf", {}, io.BytesIO(
+                json.dumps({"error": "NOT_FOUND", "error_description": "no " + HOOK + "scope.json"}).encode()))
+        with mock.patch.object(b24.urllib.request, "urlopen", leak), self.assertRaises(RuntimeError) as caught:
+            b24.call(HOOK, "scope")
+        self.assertNotIn("synthetic-code", str(caught.exception))
+
+    def test_telephony_webhook_must_be_https(self):
+        with mock.patch.dict(os.environ, {"BITRIX24_TELEPHONY_WEBHOOK_URL": "http://example.bitrix24.ru/rest/1/x/"}):
+            with self.assertRaises(ValueError):
+                b24.webhook(b24.build_parser().parse_args(["probe"]), telephony=True)
+
+    def test_calls_keep_only_declared_fields_and_id_is_forced(self):
+        portal = Portal()
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(b24.urllib.request, "urlopen", portal):
+            b24.main(["export", "--entity", "call", "--since", "2026-10-01", "--until", "2026-11-01", "--out", root])
+            calls = json.loads(Path(root, "call.json").read_text())
+            b24.main(["export", "--entity", "lead", "--fields", "UTM_SOURCE", "--since", "2026-10-01",
+                      "--until", "2026-11-01", "--out", root])
+            manifest = json.loads(Path(root, "lead.manifest.json").read_text())
+        self.assertEqual(set(calls[0]), {"ID", "CALL_START_DATE"})
+        self.assertEqual((manifest["fields"][0], manifest["rows"], manifest["complete"]), ("ID", 120, True))
+
+    def test_schema_counts_default_category_once(self):
+        portal = Portal()
+        out = io.StringIO()
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(b24.urllib.request, "urlopen", portal), \
+                mock.patch("sys.stdout", out):
+            b24.main(["schema", "--out", root])
+        self.assertEqual(json.loads(out.getvalue())["deal_categories"], 1)
 
     def test_missing_webhook_is_clear_error(self):
         with mock.patch.dict(os.environ, {"BITRIX24_WEBHOOK_URL": ""}):

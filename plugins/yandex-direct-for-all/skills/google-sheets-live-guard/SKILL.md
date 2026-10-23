@@ -5,7 +5,7 @@ description: Use together with Google Sheets work when editing an existing live 
 
 # Google Sheets Live Guard
 
-Use this skill as a local safety overlay whenever a task edits an existing Google Sheet. It supplements the bundled Google Sheets skill; read the bundled `google-sheets` skill and its relevant references first, then apply these additional live-state guards.
+Use this skill as a local safety overlay whenever a task edits an existing Google Sheet. It supplements whatever Google Sheets tool or skill is installed (an API client, an MCP server or a separate `google-sheets` skill — none ships with this plugin). If one is installed, read its instructions first; if not, apply these guards to direct Sheets API calls.
 
 ## Live State Before Writes
 
