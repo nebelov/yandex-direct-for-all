@@ -1,0 +1,22 @@
+{
+  "name": "yandex-direct-for-all",
+  "displayName": "Yandex Direct For All",
+  "version": "1.1.0",
+  "description": "Переносимый набор для безопасной работы с Яндекс.Директом, Метрикой, Wordstat v2, Roistat и поиском.",
+  "author": {
+    "name": "nebelov",
+    "url": "https://github.com/nebelov/yandex-direct-for-all"
+  },
+  "homepage": "https://github.com/nebelov/yandex-direct-for-all",
+  "repository": "https://github.com/nebelov/yandex-direct-for-all",
+  "license": "MIT",
+  "keywords": [
+    "yandex-direct",
+    "wordstat",
+    "metrika",
+    "roistat",
+    "yandex-search",
+    "mcp",
+    "marketing"
+  ]
+}

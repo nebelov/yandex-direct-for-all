@@ -3,8 +3,7 @@
   "version": "1.1.0",
   "description": "Переносимый набор для безопасной работы с Яндекс.Директом, Метрикой, Wordstat v2, Roistat и поиском.",
   "author": {
-    "name": "Vitaliy Travin",
-    "email": "192575378+nebelov@users.noreply.github.com",
+    "name": "nebelov",
     "url": "https://github.com/nebelov/yandex-direct-for-all"
   },
   "homepage": "https://github.com/nebelov/yandex-direct-for-all",
@@ -26,7 +25,7 @@
     "displayName": "Yandex Direct For All",
     "shortDescription": "Безопасная авторизация, чтение, анализ и контролируемые изменения.",
     "longDescription": "Единый навык, общие приложения авторизации Директа и Метрики, Wordstat v2, проверяемая установка и разделение чтения с записью.",
-    "developerName": "Vitaliy Travin",
+    "developerName": "nebelov",
     "category": "Marketing",
     "capabilities": [
       "Interactive"
