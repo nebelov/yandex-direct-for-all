@@ -62,7 +62,17 @@ class CollectorTests(unittest.TestCase):
         cloud.validate_top_response(
             {"totalCount": "1", "results": [{"phrase": "пример услуги", "count": "1"}], "associations": []}
         )
-        cloud.validate_top_response({})  # ProtoJSON: нулевой спрос без полей
+        for validate in (cloud.validate_top_response, cloud.validate_dynamics_response, cloud.validate_regions_response):
+            empty: dict = {}
+            validate(empty)  # ProtoJSON: нулевой спрос без полей
+            self.assertIn("results", empty)
+        zero_row = {"results": [{"date": "2026-06-01T00:00:00Z"}]}
+        cloud.validate_dynamics_response(zero_row)
+        self.assertEqual(zero_row["results"][0]["count"], "0")
+        with self.assertRaises(ValueError):
+            cloud.validate_dynamics_response({"results": [{"date": "2026-06-01T00:00:00Z", "count": "-2"}]})
+        with self.assertRaises(ValueError):
+            cloud.validate_regions_response({"results": [{"region": "1", "count": "-1"}]})
         with self.assertRaises(ValueError):
             cloud.validate_top_response({"totalCount": "-1"})
         cloud.validate_dynamics_response(
