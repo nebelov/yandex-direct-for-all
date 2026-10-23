@@ -21,6 +21,7 @@ require_dir "$PLUGIN_DIR/skills/yandex-direct-unified"
 require_dir "$PLUGIN_DIR/skills/yandex-wordstat"
 require_dir "$PLUGIN_DIR/skills/roistat-reports-api"
 require_dir "$PLUGIN_DIR/skills/amocrm-api-control"
+require_dir "$PLUGIN_DIR/skills/xmlriver-serp-research"
 
 require_dir "$PLUGIN_DIR/mcp/yandex-direct"
 require_dir "$PLUGIN_DIR/mcp/yandex-search"
@@ -32,6 +33,11 @@ require_dir "$PLUGIN_DIR/config"
 require_file "$PLUGIN_DIR/.codex-plugin/plugin.json"
 require_file "$PLUGIN_DIR/.mcp.json"
 require_file "$PLUGIN_DIR/.codex-mcp.json"
+require_file "$PLUGIN_DIR/.claude-plugin/plugin.json"
+require_file "$PLUGIN_DIR/scripts/provider_select.sh"
+require_file "$PLUGIN_DIR/skills/xmlriver-serp-research/scripts/xmlriver_collect.py"
+require_file "$PLUGIN_DIR/skills/xmlriver-serp-research/config/xmlriver_demo_access.json"
+require_file "$PLUGIN_DIR/tests/test_xmlriver_collect.py"
 require_file "$PLUGIN_DIR/README.md"
 require_file "$PLUGIN_DIR/docs/component-inventory.md"
 require_file "$PLUGIN_DIR/docs/codex-plugin-build-notes.md"
@@ -77,6 +83,7 @@ require_file "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/metrika_oauth_ve
 python3 -m json.tool "$PLUGIN_DIR/.codex-plugin/plugin.json" >/dev/null
 python3 -m json.tool "$PLUGIN_DIR/.mcp.json" >/dev/null
 python3 -m json.tool "$PLUGIN_DIR/.codex-mcp.json" >/dev/null
+python3 -m json.tool "$PLUGIN_DIR/.claude-plugin/plugin.json" >/dev/null
 python3 -m json.tool "$PLUGIN_DIR/config/yandex_oauth_public_profiles.json" >/dev/null
 
 python3 -m py_compile \
@@ -93,6 +100,7 @@ python3 -m py_compile \
   "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/metrika_oauth_verification_code.py"
 python3 "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/oauth_get_token.py" --help >/dev/null
 python3 "$PLUGIN_DIR/scripts/render_yandex_token_env.py" --help >/dev/null
+python3 -I "$PLUGIN_DIR/skills/xmlriver-serp-research/scripts/xmlriver_collect.py" --help >/dev/null
 python3 "$PLUGIN_DIR/scripts/start_yandex_user_auth.py" --help >/dev/null
 python3 "$PLUGIN_DIR/scripts/preflight_yandex_user_token.py" --help >/dev/null
 bash "$PLUGIN_DIR/scripts/start_yandex_user_auth.sh" --help >/dev/null
@@ -136,6 +144,7 @@ PY
 python3 "$PLUGIN_DIR/tests/test_yandex_user_auth.py" >/dev/null
 python3 "$PLUGIN_DIR/tests/test_portable_http.py" >/dev/null
 python3 "$PLUGIN_DIR/tests/test_portable_scripts.py" >/dev/null
+python3 "$PLUGIN_DIR/tests/test_xmlriver_collect.py" >/dev/null
 "$DIRECT_PYTHON" "$PLUGIN_DIR/mcp/yandex-direct/tests/test_read_only_server.py" >/dev/null
 
 for file in \

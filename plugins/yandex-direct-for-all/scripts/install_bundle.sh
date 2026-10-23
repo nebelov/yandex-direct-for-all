@@ -39,6 +39,7 @@ managed_paths=(
   "skills/amocrm-api-control"
   "skills/commercial-demand-research"
   "skills/yandex-cloud-search-cost-control"
+  "skills/xmlriver-serp-research"
   "mcp/yandex-direct"
   "mcp/yandex-search"
   "mcp/yandex-wordstat"
