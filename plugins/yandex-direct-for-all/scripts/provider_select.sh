@@ -21,7 +21,7 @@ select_provider() {
   if [[ -n "${XMLRIVER_CREDENTIALS_FILE:-}" ]] || { [[ -n "${XMLRIVER_USER:-${XMLRIVER_USER_ID:-}}" ]] && [[ -n "${XMLRIVER_KEY:-}" ]]; }; then
     xml_ready=1
   fi
-  [[ -n "${YANDEX_SEARCH_API_KEY:-}${YANDEX_SEARCH_IAM_TOKEN:-}" ]] && cloud_ready=1
+  [[ -n "${YANDEX_SEARCH_API_KEY:-}${YANDEX_SEARCH_IAM_TOKEN:-}${YANDEX_WORDSTAT_API_KEY:-}" ]] && cloud_ready=1
   case "$PROVIDER" in
     yandex-cloud|xmlriver) ;;
     auto)
@@ -36,7 +36,7 @@ select_provider() {
       elif [[ "$cloud_ready" == 1 ]]; then
         PROVIDER="yandex-cloud"
       else
-        echo "Не задан доступ ни к Yandex Cloud (YANDEX_SEARCH_API_KEY), ни к XMLRiver (XMLRIVER_USER и XMLRIVER_KEY). Укажите --provider." >&2
+        echo "Не задан доступ ни к Yandex Cloud (YANDEX_SEARCH_API_KEY или YANDEX_WORDSTAT_API_KEY), ни к XMLRiver (XMLRIVER_USER и XMLRIVER_KEY). Укажите --provider." >&2
         exit 2
       fi
       ;;
