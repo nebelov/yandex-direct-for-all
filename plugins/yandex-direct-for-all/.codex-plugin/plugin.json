@@ -20,7 +20,7 @@
     "codex-plugin"
   ],
   "skills": "./skills/",
-  "mcpServers": "./.mcp.json",
+  "mcpServers": "./.codex-mcp.json",
   "interface": {
     "displayName": "Yandex Direct For All",
     "shortDescription": "Безопасная авторизация, чтение, анализ и контролируемые изменения.",

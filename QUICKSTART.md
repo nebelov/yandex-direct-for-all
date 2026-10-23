@@ -2,7 +2,11 @@
 
 ## 1. Установка
 
-Claude Code:
+Claude Code 2.1.275 и новее:
+
+    /plugin install yandex-direct-for-all --marketplace nebelov/yandex-direct-for-all
+
+Claude Code 2.1.78–2.1.274:
 
     /plugin marketplace add nebelov/yandex-direct-for-all
     /plugin install yandex-direct-for-all@yandex-direct-for-all
@@ -28,16 +32,26 @@ Codex:
 
 ## 3. Авторизация Яндекс
 
-Для Директа и Метрики уже есть общие приложения. Создавать своё приложение не требуется:
+Для Директа и Метрики уже есть общие приложения. Создавать своё приложение не требуется. Команды запускайте из папки своего проекта: токены лягут в её `.codex/auth/`.
 
-    bash plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service direct --client-login 'логин-рекламодателя'
-    bash plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh --service metrika
+Если плагин установлен из маркетплейса, сначала найдите скрипт авторизации:
+
+    AUTH="$(find ~/.claude/plugins ~/.codex/plugins -path '*yandex-direct-for-all*' -name start_yandex_user_auth.sh 2>/dev/null | head -1)"
+
+Если работаете из клона хранилища:
+
+    AUTH=/путь/к/клону/plugins/yandex-direct-for-all/scripts/start_yandex_user_auth.sh
+
+Затем:
+
+    bash "$AUTH" --service direct --client-login 'логин-рекламодателя'
+    bash "$AUTH" --service metrika
 
 Прямой рекламодатель указывает собственный логин, представитель агентства — логин клиента-рекламодателя. Директ по умолчанию использует профиль legacy_direct, Метрика — master_yandex. Коды и токены не передаются параметрами командной строки. Готовность подтверждается только обязательным чтением соответствующей службы.
 
-Чтобы сервер MCP Директа увидел токен, создайте рядом файл доступа с правами 600:
+Чтобы сервер MCP Директа увидел токен, создайте файл `.codex/direct-access.json` с правами 600 (путь к токену в нём считается от папки этого файла):
 
-    {"environment": "production", "token_file": ".codex/auth/direct_oauth_token.json", "client_login": "логин-рекламодателя"}
+    {"environment": "production", "token_file": "auth/direct_oauth_token.json", "client_login": "логин-рекламодателя"}
 
 и запускайте Claude Code или Codex из терминала, где задано:
 

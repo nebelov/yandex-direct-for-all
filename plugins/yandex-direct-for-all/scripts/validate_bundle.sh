@@ -31,6 +31,7 @@ require_dir "$PLUGIN_DIR/config"
 
 require_file "$PLUGIN_DIR/.codex-plugin/plugin.json"
 require_file "$PLUGIN_DIR/.mcp.json"
+require_file "$PLUGIN_DIR/.codex-mcp.json"
 require_file "$PLUGIN_DIR/README.md"
 require_file "$PLUGIN_DIR/docs/component-inventory.md"
 require_file "$PLUGIN_DIR/docs/codex-plugin-build-notes.md"
@@ -75,6 +76,7 @@ require_file "$PLUGIN_DIR/skills/yandex-performance-ops/scripts/metrika_oauth_ve
 
 python3 -m json.tool "$PLUGIN_DIR/.codex-plugin/plugin.json" >/dev/null
 python3 -m json.tool "$PLUGIN_DIR/.mcp.json" >/dev/null
+python3 -m json.tool "$PLUGIN_DIR/.codex-mcp.json" >/dev/null
 python3 -m json.tool "$PLUGIN_DIR/config/yandex_oauth_public_profiles.json" >/dev/null
 
 python3 -m py_compile \

@@ -362,6 +362,9 @@ def main() -> None:
     except (ValueError, RuntimeError) as error:
         print(f"Ошибка: {error}", file=sys.stderr)
         raise SystemExit(2) from None
+    except OSError as error:  # сеть, TLS, тайм-аут, файлы
+        print(f"Ошибка сети или файла ({type(error).__name__}): проверьте подключение и права на папку авторизации, затем повторите.", file=sys.stderr)
+        raise SystemExit(2) from None
     except KeyboardInterrupt:
         print("Авторизация отменена.", file=sys.stderr)
         raise SystemExit(130) from None
