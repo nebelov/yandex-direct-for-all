@@ -22,7 +22,7 @@ Wordstat v2 работает через Yandex Cloud Search API и требуе�
 частотностей Wordstat: навык `xmlriver-serp-research`. Задайте `XMLRIVER_USER`
 и `XMLRIVER_KEY`; сборщики `collect_organic_serp.sh`, `collect_ad_serp.sh` и
 `collect_wordstat_wave.sh` сами выберут XMLRiver, если облачный доступ не
-задан. Если заданы оба, укажите `--provider`. Для первой пробы есть общий
+задан. Если заданы оба или доступ передан файлом (`--credentials-file`, `--config`), укажите `--provider`. Для первой пробы есть общий
 демо-доступ `--use-demo-key` с потолком 2 руб. за запуск.
 
 ## Выполняет ли Search API запросы сразу после установки?
