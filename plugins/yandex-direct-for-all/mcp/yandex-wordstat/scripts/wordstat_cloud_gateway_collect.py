@@ -188,16 +188,21 @@ def require_list(payload: dict[str, Any], field: str) -> list[Any]:
 def validate_phrase_rows(rows: list[Any], field: str) -> None:
     for index, row in enumerate(rows):
         item = require_object(row, f"{field}[{index}]")
-        if not isinstance(item.get("phrase"), str) or not is_int_like(item.get("count")):
+        if not isinstance(item.get("phrase"), str) or not is_int_like(item.get("count", 0)) or int(item.get("count", 0)) < 0:
             raise ValueError(f"{field}[{index}] must contain phrase and count")
 
 
 def validate_top_response(payload: Any) -> None:
     item = require_object(payload, "topRequests response")
-    if not is_int_like(item.get("totalCount")):
-        raise ValueError("totalCount must be an integer")
-    validate_phrase_rows(require_list(item, "results"), "results")
-    validate_phrase_rows(require_list(item, "associations"), "associations")
+    # ProtoJSON опускает нулевой totalCount и пустые массивы: {} — корректный нулевой ответ.
+    total = item.get("totalCount", 0)
+    if not is_int_like(total) or int(total) < 0:
+        raise ValueError("totalCount must be a non-negative integer")
+    for field in ("results", "associations"):
+        rows = item.get(field, [])
+        if not isinstance(rows, list):
+            raise ValueError(f"{field} must be an array")
+        validate_phrase_rows(rows, field)
 
 
 def validate_dynamics_response(payload: Any) -> None:
