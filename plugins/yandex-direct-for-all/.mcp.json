@@ -2,8 +2,17 @@
   "mcpServers": {
     "yandexDirect": {
       "command": "uv",
-      "args": ["run", "--frozen", "--project", "${CLAUDE_PLUGIN_ROOT}/mcp/yandex-direct", "python", "${CLAUDE_PLUGIN_ROOT}/mcp/yandex-direct/server.py", "stdio"],
+      "args": [
+        "run",
+        "--frozen",
+        "--project",
+        "${CLAUDE_PLUGIN_ROOT}/mcp/yandex-direct",
+        "python",
+        "${CLAUDE_PLUGIN_ROOT}/mcp/yandex-direct/server.py",
+        "stdio"
+      ],
       "env": {
+        "YANDEX_DIRECT_ACCESS_FILE": "${YANDEX_DIRECT_ACCESS_FILE:-}",
         "YANDEX_DIRECT_ENVIRONMENT": "${YANDEX_DIRECT_ENVIRONMENT:-sandbox}",
         "YANDEX_DIRECT_SANDBOX_TOKEN": "${YANDEX_DIRECT_SANDBOX_TOKEN:-}",
         "YANDEX_DIRECT_PRODUCTION_READ_TOKEN": "${YANDEX_DIRECT_PRODUCTION_READ_TOKEN:-}",
@@ -14,7 +23,14 @@
     },
     "yandexSearch": {
       "command": "uv",
-      "args": ["run", "--frozen", "--project", "${CLAUDE_PLUGIN_ROOT}/mcp/yandex-search", "python", "${CLAUDE_PLUGIN_ROOT}/mcp/yandex-search/server.py"],
+      "args": [
+        "run",
+        "--frozen",
+        "--project",
+        "${CLAUDE_PLUGIN_ROOT}/mcp/yandex-search",
+        "python",
+        "${CLAUDE_PLUGIN_ROOT}/mcp/yandex-search/server.py"
+      ],
       "env": {
         "YANDEX_SEARCH_API_KEY": "${YANDEX_SEARCH_API_KEY:-}",
         "YANDEX_SEARCH_FOLDER_ID": "${YANDEX_SEARCH_FOLDER_ID:-}",
@@ -26,7 +42,9 @@
     },
     "yandexWordstat": {
       "command": "bash",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/yandex-wordstat/start.sh"],
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/mcp/yandex-wordstat/start.sh"
+      ],
       "env": {
         "YANDEX_WORDSTAT_API_KEY": "${YANDEX_WORDSTAT_API_KEY:-}",
         "YANDEX_WORDSTAT_FOLDER_ID": "${YANDEX_WORDSTAT_FOLDER_ID:-}",
