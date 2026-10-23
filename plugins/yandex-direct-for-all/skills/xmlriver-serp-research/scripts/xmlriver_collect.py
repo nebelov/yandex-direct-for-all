@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import fcntl
 import hashlib
 import json
 import os
@@ -61,6 +62,7 @@ AD_RESULT_HEADER = [
 SERP_EXTRA = ["provider", "engine", "device", "contenttype", "abs_rank_state", "job_key", "raw_sha256", "corrected_query"]
 AD_EXTRA = ["provider", "engine", "block", "adsurl", "title_clean", "snippet_clean", "sitelinks_json",
             "landing_status", "landing_url", "job_key", "raw_sha256"]
+MSK = timezone(timedelta(hours=3))  # даты Wordstat — по Москве
 FALSEY = {"0", "false", "no", "off", "disabled"}
 OPEN_DBS: list[sqlite3.Connection] = []
 
@@ -189,9 +191,15 @@ def serp_jobs(args: argparse.Namespace) -> list[dict]:
                         params["domain"] = domain
                     if args.ads == "on":
                         params.update(ads=1, additional="topads,bottomads")
+                effective = dict(row)
+                if engine == "yandex":
+                    effective["region_id"] = params["lr"]
+                else:
+                    effective["region_id"] = params.get("loc") or f"country:{params['country']}"
+                effective["search_region"] = row.get("search_region") or effective["region_id"]
                 jobs.append({"kind": "serp", "engine": engine, "params": params, "page": page,
-                             "row": {k: row.get(k, "") for k in ("job_id", "layer", "purpose", "search_query",
-                                                                  "search_region", "region_id", "notes")}})
+                             "row": {k: effective.get(k, "") for k in ("job_id", "layer", "purpose", "search_query",
+                                                                        "search_region", "region_id", "notes")}})
     return finish_jobs(jobs)
 
 
@@ -342,6 +350,11 @@ def parse_response(kind: str, body: bytes, status: int | None) -> dict:
             raise ValueError("ответ Wordstat не объект JSON")
         if "error" in data or ("code" in data and "popular" not in data and "graph" not in data):
             return {"error_code": str(data.get("code", "unknown")), "error_text": str(data.get("error", ""))[:300]}
+        if isinstance(data.get("popular"), list):
+            if not isinstance(data.get("associations", []), list):
+                raise ValueError("associations Wordstat не список")
+        elif not isinstance(data.get("graph"), dict):
+            raise ValueError("в ответе Wordstat нет ни popular, ни graph")
         return {"error_code": None, "data": data}
     root = ET.fromstring(body)
     response = root.find("response")
@@ -417,29 +430,39 @@ def recover_saved(db: sqlite3.Connection, run: Path, jobs_by_key: dict, auth: di
     return recovered
 
 
-def start_attempt(db: sqlite3.Connection, run: Path, job: dict) -> tuple[int, Path]:
+def start_attempt(db: sqlite3.Connection, run: Path, job: dict) -> tuple[int, Path] | None:
+    """Захватывает задание атомарно: только из pending или error. Иначе None — запрос не отправляется."""
     suffix = ".json" if job["kind"] == "wordstat" else ".xml"
     with db:
+        claimed = db.execute("UPDATE jobs SET status='inflight' WHERE job_key=? AND status IN ('pending','error')",
+                             (job["job_key"],)).rowcount
+        if claimed != 1:
+            return None
         number = db.execute("SELECT COUNT(*) FROM attempts WHERE job_key=?", (job["job_key"],)).fetchone()[0] + 1
         rel = f"raw/{job['job_key']}-{number:03d}{suffix}"
         cursor = db.execute("INSERT INTO attempts(job_key,started_utc,raw_file) VALUES(?,?,?)",
                             (job["job_key"], utc_now(), rel))
-        db.execute("UPDATE jobs SET status='inflight' WHERE job_key=?", (job["job_key"],))
     return cursor.lastrowid, run / rel
 
 
 def collect(db: sqlite3.Connection, run: Path, queue: list[dict], auth: dict, workers: int, timeout: int) -> dict:
     """Главный поток владеет SQLite; рабочие потоки только ходят в сеть и пишут файлы."""
-    counts = {"success": 0, "empty": 0, "error": 0, "inflight": 0}
+    counts = {"success": 0, "empty": 0, "error": 0, "inflight": 0, "started": 0, "skipped_claimed": 0}
     pending, active, stop = iter(queue), {}, None
     with ThreadPoolExecutor(max_workers=workers) as pool:
         def submit_next() -> None:
             if stop:
                 return
-            job = next(pending, None)
-            if job is None:
-                return
-            attempt_id, raw_path = start_attempt(db, run, job)
+            while True:
+                job = next(pending, None)
+                if job is None:
+                    return
+                claim = start_attempt(db, run, job)
+                if claim is not None:
+                    break
+                counts["skipped_claimed"] += 1
+            attempt_id, raw_path = claim
+            counts["started"] += 1
             active[pool.submit(fetch_and_store, job, auth, raw_path, timeout)] = (attempt_id, job)
 
         for _ in range(min(workers, len(queue))):
@@ -518,7 +541,8 @@ def export_serp(db: sqlite3.Connection, run: Path, jobs: list[dict]) -> dict:
     page_docs: dict[tuple, list] = {}
     for job, parsed, rel, digest, when in success_payloads(db, run, jobs):
         row = job["row"]
-        common = {**row, "page": job["page"], "doc_rank": 1, "collected_at": when, "raw_json_path": "",
+        series = json.dumps({k: v for k, v in job["params"].items() if k != "page"}, sort_keys=True)
+        common = {**row, "page": job["page"], "doc_rank": 1, "_series": series, "collected_at": when, "raw_json_path": "",
                   "raw_xml_path": rel, "raw_html_path": rel, "provider": "xmlriver", "engine": job["engine"],
                   "device": job["params"]["device"], "job_key": job["job_key"], "raw_sha256": digest,
                   "corrected_query": parsed.get("corrected", "")}
@@ -531,8 +555,7 @@ def export_serp(db: sqlite3.Connection, run: Path, jobs: list[dict]) -> dict:
             organic.append({**common, "group_rank": rank, "result_rank": rank, "result_title": title,
                             "result_headline": passage, "result_title_or_snippet": title or passage,
                             "result_domain": host(url), "source_url": url, "contenttype": "organic"})
-        page_docs[(job["engine"], json.dumps({k: v for k, v in job["params"].items() if k != "page"}, sort_keys=True),
-                   job["page"])] = (urls, parsed.get("corrected", ""), len(parsed["features"]))
+        page_docs[(job["engine"], series, job["page"])] = (urls, parsed.get("corrected", ""), len(parsed["features"]))
         for rank, doc in enumerate(parsed["features"], start=1):
             url = (doc.findtext("url") or "").strip()
             features.append({**common, "group_rank": rank, "result_rank": rank, "result_domain": host(url),
@@ -552,10 +575,24 @@ def export_serp(db: sqlite3.Connection, run: Path, jobs: list[dict]) -> dict:
                         "landing_status": "landing-unresolved", "landing_url": ""})
     for row in organic:
         row["abs_rank_state"] = rank_state(page_docs, row)
-    write_tsv(run / "serp_results.tsv", RESULT_HEADER + SERP_EXTRA, organic)
-    write_tsv(run / "feature_rows.tsv", RESULT_HEADER + SERP_EXTRA, features)
-    write_tsv(run / "ad_rows.tsv", AD_RESULT_HEADER + AD_EXTRA, ads)
-    return {"organic_rows": len(organic), "feature_rows": len(features), "ad_rows": len(ads)}
+    engines = sorted({j["engine"] for j in jobs})
+    written = []
+    for name, fields, rows in (("serp_results", RESULT_HEADER + SERP_EXTRA, organic),
+                               ("feature_rows", RESULT_HEADER + SERP_EXTRA, features),
+                               ("ad_rows", AD_RESULT_HEADER + AD_EXTRA, ads)):
+        # Прежние потребители группируют только по запросу и региону: две системы в одной таблице
+        # смешались бы, поэтому общая таблица пишется только для одной системы, иначе — по файлу на систему.
+        for stale in [run / f"{name}.tsv", *(run / f"{name}_{e}.tsv" for e in ("yandex", "google"))]:
+            if stale.exists():
+                stale.unlink()
+        if len(engines) == 1:
+            write_tsv(run / f"{name}.tsv", fields, rows)
+            written.append(f"{name}.tsv")
+        else:
+            for engine in engines:
+                write_tsv(run / f"{name}_{engine}.tsv", fields, [r for r in rows if r["engine"] == engine])
+                written.append(f"{name}_{engine}.tsv")
+    return {"organic_rows": len(organic), "feature_rows": len(features), "ad_rows": len(ads), "files": written}
 
 
 def rank_state(page_docs: dict, row: dict) -> str:
@@ -565,12 +602,12 @@ def rank_state(page_docs: dict, row: dict) -> str:
         return "verified"
     if row["engine"] == "google":
         return "not_verified_google"
-    key = [k for k in page_docs if k[0] == row["engine"] and k[2] == page]
-    if not key:
+    key = [(row["engine"], row["_series"], page)]
+    if key[0] not in page_docs:
         return "unknown"
     seen: set[str] = set()
     for previous in range(page + 1):
-        docs = page_docs.get((key[0][0], key[0][1], previous))
+        docs = page_docs.get((row["engine"], row["_series"], previous))
         if docs is None:
             return "previous_page_missing_or_not_successful"
         urls, corrected, features = docs
@@ -594,6 +631,11 @@ def wordstat_number(value) -> int:
 def export_wordstat(db: sqlite3.Connection, run: Path, jobs: list[dict]) -> dict:
     bundle = run / "raw_bundle"
     bundle.mkdir(mode=0o700, exist_ok=True)
+    # Повторный экспорт пересобирает каталог целиком: прежние файлы иначе попали бы в рендер дважды.
+    for stale in [*bundle.glob("top_requests_*.json"), *bundle.glob("dynamics_*.json"), *bundle.glob("_manifest.json"),
+                  *bundle.glob("region_*/top_requests_*.json"), *bundle.glob("region_*/dynamics_*.json"),
+                  *bundle.glob("region_*/_manifest.json")]:
+        stale.unlink()
     grouped: dict[tuple, dict] = {}
     row_errors = []
     for job, parsed, rel, digest, _ in success_payloads(db, run, jobs):
@@ -613,36 +655,49 @@ def export_wordstat(db: sqlite3.Connection, run: Path, jobs: list[dict]) -> dict
                         rows.append({"phrase": re.sub(r"\s+", " ", re.sub(r"(?<!\S)\+(?=\S)", "", raw)).strip(),
                                      "count": wordstat_number(entry.get("value")), "phrase_raw": raw})
                     except ValueError as error:
-                        row_errors.append({"mask": key[0], "field": field, "text": raw, "error": str(error)})
+                        row_errors.append({"mask": key[0], "region": key[1], "field": field, "text": raw,
+                                           "error": str(error)})
                 item[target] = rows
         else:
             graph = data.get("graph") or {}
             series = (((graph.get("images") or {}).get("timeSeries") or {}).get("rawValues")) or graph.get("tableData") or []
-            item["dynamics"] = [{"date": datetime.fromtimestamp(int(p["startTimestamp"]) / 1000, timezone.utc).date().isoformat(),
+            item["dynamics"] = [{"date": datetime.fromtimestamp(int(p["startTimestamp"]) / 1000, MSK).date().isoformat(),
                                  "count": wordstat_number(p.get("absoluteValue")),
                                  "share": float(str(p.get("value", "0")).replace(",", "."))} for p in series
                                 if "startTimestamp" in p]
             if data.get("totalValue") is not None:
                 item["totalCount"] = wordstat_number(data["totalValue"])
                 item["totalCountSource"] = "xmlriver_history_totalValue_previous_month"
-    manifest = []
+    # Один регион — файлы прямо в raw_bundle (как у облачного сборщика); несколько — по каталогу на регион,
+    # чтобы рендер волны не смешивал регионы.
+    regions = sorted({r for (_, r) in grouped})
+    manifests: dict[Path, list] = {}
     for (mask, region), item in grouped.items():
+        target = bundle if len(regions) == 1 else bundle / f"region_{region or 'all'}"
+        target.mkdir(mode=0o700, exist_ok=True)
         readable = re.sub(r"[^a-zA-Z0-9а-яА-ЯёЁ_-]+", "_", mask).lower()[:55].strip("_") or "mask"
-        stub = f"{readable}_{sha256(mask.encode('utf-8'))[:10]}" + (f"_r{region}" if len(
-            {r for (m, r) in grouped if m == mask}) > 1 else "")
+        stub = f"{readable}_{sha256(mask.encode('utf-8'))[:10]}"
+        bad = [e for e in row_errors if e["mask"] == mask and e["region"] == region]
         for artifact, present in (("top_requests", "results" in item), ("dynamics", "dynamics" in item)):
             if not present:
                 continue
-            path = bundle / f"{artifact}_{stub}.json"
+            path = target / f"{artifact}_{stub}.json"
             skip = ("dynamics",) if artifact == "top_requests" else ("results", "associations")
             payload = {k: v for k, v in item.items() if k not in skip}
             path.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
-            manifest.append({"mask": mask, "source_mask": mask, "artifact": artifact, "type": artifact,
-                             "status": "success", "file": str(path), "provider": "xmlriver", "regions": region})
-    (bundle / "_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
+            manifests.setdefault(target, []).append(
+                {"mask": mask, "source_mask": mask, "artifact": artifact, "type": artifact,
+                 "status": "partial" if bad else "success", "row_errors": len(bad), "file": str(path),
+                 "provider": "xmlriver", "regions": region})
+    for target, entries in manifests.items():
+        (target / "_manifest.json").write_text(json.dumps(entries, ensure_ascii=False, indent=1), encoding="utf-8")
+    errors_file = run / "wordstat_row_errors.tsv"
+    if errors_file.exists():
+        errors_file.unlink()
     if row_errors:
-        write_tsv(run / "wordstat_row_errors.tsv", ["mask", "field", "text", "error"], row_errors)
-    return {"artifacts": len(manifest), "row_errors": len(row_errors)}
+        write_tsv(errors_file, ["mask", "region", "field", "text", "error"], row_errors)
+    return {"artifacts": sum(len(e) for e in manifests.values()), "row_errors": len(row_errors),
+            "complete": not row_errors, "region_dirs": len(regions) > 1}
 
 
 # ---------- команды ----------
@@ -666,6 +721,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--google-loc", default="")
     parser.add_argument("--google-domain", default="")
     parser.add_argument("--ai", action="store_true", help="платный разбор блока ИИ (ai=1)")
+    parser.add_argument("--ai-price-per-1000", help="надбавка за ai=1 в руб. за 1000 запросов по вашему тарифу; "
+                                                    "обязательна для collect с --ai")
     parser.add_argument("--masks-file", help="маски Wordstat: по одной в строке или TSV с колонкой mask")
     parser.add_argument("--regions", default="225", help="регионы Яндекса через запятую, по заданию на регион")
     parser.add_argument("--devices", default="all", help="all или desktop,phone,tablet")
@@ -733,7 +790,7 @@ def run_command(args: argparse.Namespace) -> int:
     if args.command == "export":
         result = export_serp(db, run, jobs) if args.kind == "serp" else export_wordstat(db, run, jobs)
         print(json.dumps({**result, "status": counts}, ensure_ascii=False))
-        return 0
+        return 2 if result.get("row_errors") else 0
     if args.command == "inflight":
         rows = inflight_rows(db, by_key)
         if not args.job_key:
@@ -755,10 +812,21 @@ def run_command(args: argparse.Namespace) -> int:
     auth, demo = credentials(args)
     if demo and cap > DEMO_MAX_COST:
         raise ValueError(f"С демо-доступом потолок не больше {DEMO_MAX_COST} руб. за запуск: заведите свой ключ XMLRiver.")
+    if args.ai and demo:
+        raise ValueError("Платный режим --ai с демо-доступом запрещён: заведите свой ключ XMLRiver.")
+    if args.ai and not args.ai_price_per_1000:
+        raise ValueError("Для --ai укажите --ai-price-per-1000 — надбавку по тарифу: get_info её не сообщает, "
+                         "без неё потолок стоимости не проверить.")
+    ai_extra = Decimal(args.ai_price_per_1000) / 1000 if args.ai else Decimal(0)
     with db:
         for job in jobs:
             db.execute("INSERT OR IGNORE INTO jobs(job_key,kind,engine,spec_json,status) VALUES(?,?,?,?,'pending')",
                        (job["job_key"], job["kind"], job["engine"], json.dumps(job["params"], ensure_ascii=False)))
+    lock = open(run / ".collect.lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise ValueError("В этом каталоге уже идёт другой collect: два процесса могли бы оплатить один запрос дважды.") from None
     recovered = recover_saved(db, run, by_key, auth)
     state = statuses(db, jobs)
     retry_codes = set(args.only_codes.split(","))
@@ -774,7 +842,7 @@ def run_command(args: argparse.Namespace) -> int:
     for engine in {j["engine"] for j in queue}:
         if (info.get("engine") or {}).get(engine) != 1 or engine not in costs:
             raise ValueError(f"Система {engine} недоступна в XMLRiver или нет её цены.")
-    estimate = sum(Decimal(str(costs[j["engine"]])) / 1000 for j in queue)
+    estimate = sum(Decimal(str(costs[j["engine"]])) / 1000 + (ai_extra if j["kind"] == "serp" else 0) for j in queue)
     if estimate > cap or estimate > Decimal(str(info.get("balance", 0))):
         raise ValueError(f"Оценка {estimate} руб. больше потолка {cap} или баланса {info.get('balance')}.")
     workers = max(1, min(args.workers, min(int(threads.get(j["engine"], 3)) for j in queue) - 2))
@@ -783,7 +851,7 @@ def run_command(args: argparse.Namespace) -> int:
         balance_after = get_info(auth).get("balance")
     except ValueError:
         balance_after = None
-    print(json.dumps({"new_requests": len(queue), **result, "recovered": recovered, "estimate_rub": str(estimate),
+    print(json.dumps({"new_requests": result["started"], "queued": len(queue), **result, "recovered": recovered, "estimate_rub": str(estimate),
                       "balance_before": info.get("balance"), "balance_after": balance_after,
                       "balance_note": "разница общего баланса может включать чужие запросы", "demo_key": demo},
                      ensure_ascii=False, indent=1))
