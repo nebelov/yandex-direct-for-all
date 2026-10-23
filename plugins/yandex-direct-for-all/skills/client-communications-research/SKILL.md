@@ -7,7 +7,7 @@ description: Use when turning client calls, chats, CRM notes, call recordings, m
 
 Use this skill when the task is to analyze real client communications and produce conclusions, quotes, objections, audience language, sales insights, ad angles, or positioning.
 
-This skill starts after source acquisition is planned or under way. For amoCRM access and corpus acquisition, use `amocrm-api-control` first. For calls and meetings, ALWAYS take the ready transcript first: Vitaliy's Secretary bot `@telemost_secretary_bot` (personal Telegram: stenogram `YYYY-MM-DD.txt` plus "Управленческий протокол" in its chat), Dictaphone recordings in `~/Ежедневник/Расшифровки/`. NEVER search the disk for audio or start a transcription before checking both. Only if neither has the recording, transcribe with `openrouter-audio-transcribe` (owner-approved canon), not `transcribe` (16.10.2026: a paid self-transcription was started while the Secretary's stenogram existed — owner: «чем тебя готовая расшифровка от Секретаря не устроила»). This skill governs the research package and final synthesis boundary.
+This skill starts after source acquisition is planned or under way. For amoCRM access and corpus acquisition, use `amocrm-api-control` first. For calls and meetings, first look for a ready transcript or meeting notes from the user's existing tools (meeting recorder, messenger bot, voice-memo transcripts). Start a paid transcription only when no ready transcript exists, and only with the service the user approved. This skill governs the research package and final synthesis boundary.
 
 ## Required Inputs
 
@@ -37,9 +37,9 @@ Opening every filename or reconciling transcript counts does not prove that all
 dialogue content was read. Re-read missing or truncated sections before claiming
 complete analysis; mechanical range checks establish coverage, not understanding.
 
-For recurring translation and analysis pipelines, also use
-[Versioned Corpus Analysis](../versioned-corpus-analysis/SKILL.md) to bind queues,
-accepted results and downstream inputs to the correct source versions.
+For recurring translation and analysis pipelines, bind queues, accepted results
+and downstream inputs to the exact source versions: a result is current only for
+the source content and rule version it was produced from.
 
 For question inventories or conversation analysis, uncertain speaker identity
 must not silently remove a substantive question. Preserve the question with
@@ -58,7 +58,7 @@ Do not turn a discussion idea into an assigned task unless the source shows a
 responsible person, action, acceptance condition, deadline or trigger, and
 agreement confidence.
 
-A phrase said by a third party to someone else (for example the client talking on the phone during the call) is never our task. Before proposing a plan from a transcript, first list "what we already know" from the project's `claude/docs/` research, then only tasks from explicit agreements with a quote (14.10.2026: a «slogan for a poster» was invented from a fragment and a 14-point plan followed — owner: «не выдумывать»). Questions to the owner from a transcript: at most 5–7, only ones whose answer changes the next action or document.
+A phrase said by a third party to someone else (for example the client talking on the phone during the call) is never our task. Before proposing a plan from a transcript, first list "what we already know" from the project's existing research, then only tasks from explicit agreements with a quote; do not build a plan from a fragment of someone's phrase. Questions to the user from a transcript: at most 5–7, only ones whose answer changes the next action or document.
 
 If the communication contains personal topics, private details, or side
 conversations, keep them out of task lists and client-facing summaries unless
