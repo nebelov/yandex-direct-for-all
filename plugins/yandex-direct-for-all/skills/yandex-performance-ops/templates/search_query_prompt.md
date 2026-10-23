@@ -11,7 +11,7 @@ Inputs:
 - `reports/search_query_30d.tsv`
 - `reports/criteria_30d.tsv`
 - `management/keywords.json`
-- `roistat/keywords_30d.json` if available
+- sales-source keyword performance (`roistat/keywords_30d.json` or CRM export) if connected
 
 Output:
 - `tasks_search_queries.tsv`

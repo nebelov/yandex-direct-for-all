@@ -11,7 +11,7 @@ Inputs:
 - proposed negative words/phrases
 - active keywords
 - SQR raw file
-- Roistat keyword performance if available
+- sales-source keyword performance (CRM or Roistat) if connected
 
 Checks:
 1. semantic conflict with target products/services

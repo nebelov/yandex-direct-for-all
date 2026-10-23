@@ -2,8 +2,8 @@
 
 1. yandex-direct-unified — обязательная единая точка входа.
 2. yandex-wordstat — методы, квоты и схемы Wordstat v2.
-3. roistat-reports-api — отчёты и сверка продаж Roistat.
-4. amocrm-api-control — доступ и сверка amoCRM.
+3. roistat-reports-api — отчёты и сверка продаж Roistat (необязательно, если Roistat подключён).
+4. amocrm-api-control — доступ и сверка amoCRM; сверка работает и по CRM-выгрузке файлом (необязательно).
 5. yandex-performance-ops — совместимый переходник и сценарии.
 6. yandex-direct-client-lifecycle — совместимый переходник и исследовательские шаблоны.
 7. xmlriver-serp-research — выдача Яндекса и Google и Wordstat через XMLRiver, альтернатива Yandex Cloud.

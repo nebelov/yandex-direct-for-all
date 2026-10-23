@@ -1,7 +1,7 @@
 {
   "name": "yandex-direct-for-all",
   "version": "1.1.0",
-  "description": "Переносимый набор для безопасной работы с Яндекс.Директом, Метрикой, Wordstat v2, Roistat и поиском.",
+  "description": "Переносимый набор для безопасной работы с Яндекс.Директом, Метрикой и Wordstat v2; выдача и Wordstat также через XMLRiver; Roistat и amoCRM — если подключены.",
   "author": {
     "name": "nebelov",
     "url": "https://github.com/nebelov/yandex-direct-for-all"
@@ -17,7 +17,8 @@
     "yandex-search",
     "mcp",
     "marketing",
-    "codex-plugin"
+    "codex-plugin",
+    "xmlriver"
   ],
   "skills": "./skills/",
   "mcpServers": "./.codex-mcp.json",
@@ -36,7 +37,7 @@
     "defaultPrompt": [
       "Собери исходные данные Wordstat v2 и подготовь проверяемый отчёт.",
       "Проверь кампании Директа без записи и подготовь пакет предложений.",
-      "Собери отчёт Roistat через программный интерфейс."
+      "Собери выдачу Яндекса по моим запросам через XMLRiver или Yandex Cloud с потолком стоимости."
     ],
     "brandColor": "#D62828",
     "composerIcon": "./assets/icon.png",
