@@ -22,6 +22,16 @@ require_dir "$PLUGIN_DIR/skills/yandex-wordstat"
 require_dir "$PLUGIN_DIR/skills/roistat-reports-api"
 require_dir "$PLUGIN_DIR/skills/amocrm-api-control"
 require_dir "$PLUGIN_DIR/skills/xmlriver-serp-research"
+require_dir "$PLUGIN_DIR/skills/bitrix24-crm-api"
+require_dir "$PLUGIN_DIR/skills/bitrix24-bi-reports"
+require_dir "$PLUGIN_DIR/skills/analytics-dashboard-integrity"
+require_dir "$PLUGIN_DIR/skills/direct-report-wizard-library"
+require_dir "$PLUGIN_DIR/skills/keysso-competitor-research"
+require_dir "$PLUGIN_DIR/skills/google-sheets-live-guard"
+require_dir "$PLUGIN_DIR/skills/structured-output-file-integrity"
+require_dir "$PLUGIN_DIR/skills/serp-rank-verification"
+require_dir "$PLUGIN_DIR/skills/work-status-reporting"
+require_dir "$PLUGIN_DIR/skills/client-communications-research"
 
 require_dir "$PLUGIN_DIR/mcp/yandex-direct"
 require_dir "$PLUGIN_DIR/mcp/yandex-search"
@@ -146,6 +156,8 @@ python3 "$PLUGIN_DIR/tests/test_yandex_user_auth.py" >/dev/null
 python3 "$PLUGIN_DIR/tests/test_portable_http.py" >/dev/null
 python3 "$PLUGIN_DIR/tests/test_portable_scripts.py" >/dev/null
 python3 "$PLUGIN_DIR/tests/test_optional_sources.py" >/dev/null
+python3 "$PLUGIN_DIR/skills/bitrix24-crm-api/tests/test_bitrix24_read.py" >/dev/null 2>&1
+python3 -I "$PLUGIN_DIR/skills/bitrix24-crm-api/scripts/bitrix24_read.py" --help >/dev/null
 python3 "$PLUGIN_DIR/tests/test_xmlriver_collect.py" >/dev/null
 "$DIRECT_PYTHON" "$PLUGIN_DIR/mcp/yandex-direct/tests/test_read_only_server.py" >/dev/null
 
