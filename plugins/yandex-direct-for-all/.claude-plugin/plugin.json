@@ -2,7 +2,7 @@
   "name": "yandex-direct-for-all",
   "displayName": "Yandex Direct For All",
   "version": "1.1.0",
-  "description": "Переносимый набор для безопасной работы с Яндекс.Директом, Метрикой, Wordstat v2, Roistat и поиском.",
+  "description": "Переносимый набор для безопасной работы с Яндекс.Директом, Метрикой и Wordstat v2; выдача и Wordstat также через XMLRiver; Roistat и amoCRM — если подключены.",
   "author": {
     "name": "nebelov",
     "url": "https://github.com/nebelov/yandex-direct-for-all"
@@ -17,6 +17,7 @@
     "roistat",
     "yandex-search",
     "mcp",
-    "marketing"
+    "marketing",
+    "xmlriver"
   ]
 }

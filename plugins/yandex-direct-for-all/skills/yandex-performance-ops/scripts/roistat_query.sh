@@ -2,10 +2,16 @@
 set -euo pipefail
 
 usage() {
-  echo "Использование: $0 <выход.json> <метод> [тело.json] [--project PROJECT] [--credentials-file FILE] [--base-url URL]" >&2
+  echo "Использование: $0 <выход.json> <метод> [тело.json] [--project PROJECT] [--credentials-file FILE] [--base-url URL] [--if-configured]" >&2
   exit 1
 }
 
+IF_CONFIGURED=0
+ARGS=()
+for arg in "$@"; do
+  if [[ "$arg" == "--if-configured" ]]; then IF_CONFIGURED=1; else ARGS+=("$arg"); fi
+done
+set -- ${ARGS[@]+"${ARGS[@]}"}
 [[ $# -lt 2 ]] && usage
 OUTPUT_FILE="$1"
 ENDPOINT="$2"
@@ -37,8 +43,14 @@ if [[ -n "$CREDENTIALS_FILE" ]]; then
   [[ -z "$API_KEY" ]] && API_KEY="$FILE_API_KEY"
   [[ -n "$FILE_BASE_URL" ]] && BASE_URL="$FILE_BASE_URL"
 fi
-[[ -n "$PROJECT" ]] || { echo "Не задан проект Roistat" >&2; exit 2; }
-[[ -n "$API_KEY" ]] || { echo "Не задан ROISTAT_API_KEY или закрытый файл доступа" >&2; exit 2; }
+if [[ -z "$PROJECT" || -z "$API_KEY" ]]; then
+  if [[ "$IF_CONFIGURED" == 1 ]]; then
+    echo "Roistat не подключён (источник необязателен): шаг пропущен, файл результата не создан" >&2
+    exit 0
+  fi
+  echo "Не заданы проект и ключ Roistat (ROISTAT_PROJECT, ROISTAT_API_KEY или --credentials-file). Roistat необязателен: без него продажи берутся из CRM-выгрузки или целей Метрики." >&2
+  exit 2
+fi
 [[ "$ENDPOINT" =~ ^[A-Za-z0-9_./-]+$ ]] || { echo "Недопустимый метод" >&2; exit 2; }
 
 OUTPUT_DIR="$(dirname "$OUTPUT_FILE")"
