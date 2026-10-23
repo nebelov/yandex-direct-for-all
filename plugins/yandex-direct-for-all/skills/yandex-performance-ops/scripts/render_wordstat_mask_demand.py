@@ -49,7 +49,8 @@ def render_rows(base_dir: Path, config_rows: list[dict[str, str]]) -> list[dict[
                 "cluster": config["cluster"],
                 "mask": mask,
                 "wave": config["wave"],
-                "total_count": int(payload.get("totalCount", 0) or 0),
+                # Нет totalCount (например, XMLRiver без страницы history) — пусто, а не ноль спроса.
+                "total_count": int(payload["totalCount"]) if payload.get("totalCount") is not None else "",
                 "request_phrase": normalize_text(payload.get("requestPhrase", "")),
                 "note": normalize_text(config.get("note", "")),
                 "source_file": raw_path.name,
