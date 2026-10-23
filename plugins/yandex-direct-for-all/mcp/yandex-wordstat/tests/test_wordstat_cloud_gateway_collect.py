@@ -62,6 +62,9 @@ class CollectorTests(unittest.TestCase):
         cloud.validate_top_response(
             {"totalCount": "1", "results": [{"phrase": "пример услуги", "count": "1"}], "associations": []}
         )
+        cloud.validate_top_response({})  # ProtoJSON: нулевой спрос без полей
+        with self.assertRaises(ValueError):
+            cloud.validate_top_response({"totalCount": "-1"})
         cloud.validate_dynamics_response(
             {"results": [{"date": "2026-06-01T00:00:00Z", "count": "1", "share": 0.1}]}
         )
