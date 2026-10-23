@@ -45,7 +45,13 @@ if [[ -n "$CREDENTIALS_FILE" ]]; then
 fi
 if [[ -z "$PROJECT" || -z "$API_KEY" ]]; then
   if [[ "$IF_CONFIGURED" == 1 ]]; then
-    echo "Roistat не подключён (источник необязателен): шаг пропущен, файл результата не создан" >&2
+    # Прежний файл результата заменяется пометкой пропуска: старые продажи не должны сойти за свежую выгрузку.
+    mkdir -p "$(dirname "$OUTPUT_FILE")"
+    SKIP_FILE="$(mktemp "$(dirname "$OUTPUT_FILE")/.roistat-skip.XXXXXX")"
+    python3 -c 'import json,sys; print(json.dumps({"status": "skipped", "source": "roistat", "reason": "not_configured", "endpoint": sys.argv[1]}, ensure_ascii=False))' "$ENDPOINT" > "$SKIP_FILE"
+    chmod 600 "$SKIP_FILE"
+    mv "$SKIP_FILE" "$OUTPUT_FILE"
+    echo "Roistat не подключён (источник необязателен): шаг пропущен, в файл результата записан status=skipped" >&2
     exit 0
   fi
   echo "Не заданы проект и ключ Roistat (ROISTAT_PROJECT, ROISTAT_API_KEY или --credentials-file). Roistat необязателен: без него продажи берутся из CRM-выгрузки или целей Метрики." >&2
