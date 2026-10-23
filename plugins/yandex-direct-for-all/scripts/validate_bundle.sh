@@ -71,6 +71,7 @@ require_file "$PLUGIN_DIR/scripts/portable_http.py"
 require_file "$PLUGIN_DIR/tests/test_yandex_user_auth.py"
 require_file "$PLUGIN_DIR/tests/test_portable_http.py"
 require_file "$PLUGIN_DIR/tests/test_portable_scripts.py"
+require_file "$PLUGIN_DIR/tests/test_optional_sources.py"
 require_file "$PLUGIN_DIR/mcp/yandex-direct/tests/test_read_only_server.py"
 require_file "$PLUGIN_DIR/mcp/yandex-direct/pyproject.toml"
 require_file "$PLUGIN_DIR/mcp/yandex-direct/uv.lock"
@@ -144,6 +145,7 @@ PY
 python3 "$PLUGIN_DIR/tests/test_yandex_user_auth.py" >/dev/null
 python3 "$PLUGIN_DIR/tests/test_portable_http.py" >/dev/null
 python3 "$PLUGIN_DIR/tests/test_portable_scripts.py" >/dev/null
+python3 "$PLUGIN_DIR/tests/test_optional_sources.py" >/dev/null
 python3 "$PLUGIN_DIR/tests/test_xmlriver_collect.py" >/dev/null
 "$DIRECT_PYTHON" "$PLUGIN_DIR/mcp/yandex-direct/tests/test_read_only_server.py" >/dev/null
 
