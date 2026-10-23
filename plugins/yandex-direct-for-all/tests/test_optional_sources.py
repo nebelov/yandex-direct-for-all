@@ -21,10 +21,11 @@ class OptionalSourcesTests(unittest.TestCase):
     def test_roistat_query_skips_without_access_only_with_flag(self):
         with tempfile.TemporaryDirectory() as root:
             out = Path(root) / "out.json"
+            out.write_text('{"sales": 99}', encoding="utf-8")  # прошлая выгрузка не должна остаться текущей
             skipped = subprocess.run(["bash", str(OPS / "scripts/roistat_query.sh"), str(out), "project/list",
                                       "--if-configured"], env=CLEAN_ENV, capture_output=True, text=True)
             self.assertEqual(skipped.returncode, 0)
-            self.assertFalse(out.exists())
+            self.assertEqual(json.loads(out.read_text(encoding="utf-8"))["status"], "skipped")
             failed = subprocess.run(["bash", str(OPS / "scripts/roistat_query.sh"), str(out), "project/list"],
                                     env=CLEAN_ENV, capture_output=True, text=True)
             self.assertEqual(failed.returncode, 2)
