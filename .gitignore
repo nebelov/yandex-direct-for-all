@@ -47,6 +47,7 @@ secret*.json
 
 *approval*.json
 *access*.json
+!plugins/yandex-direct-for-all/skills/xmlriver-serp-research/config/xmlriver_demo_access.json
 *ledger*.json
 before.json
 after.json
