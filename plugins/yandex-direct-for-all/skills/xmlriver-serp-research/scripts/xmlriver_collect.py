@@ -273,6 +273,22 @@ def finish_jobs(jobs: list[dict]) -> list[dict]:
     return jobs
 
 
+def ai_extra_per_request(args: argparse.Namespace) -> Decimal:
+    """Надбавка за ai=1 на один запрос; число конечное и неотрицательное."""
+    if not args.ai:
+        return Decimal(0)
+    if not args.ai_price_per_1000:
+        raise ValueError("Для --ai укажите --ai-price-per-1000 — надбавку по тарифу: get_info её не сообщает, "
+                         "без неё потолок стоимости не проверить.")
+    try:
+        price = Decimal(args.ai_price_per_1000)
+    except ArithmeticError:
+        raise ValueError("--ai-price-per-1000 должно быть числом.") from None
+    if not price.is_finite() or price < 0:
+        raise ValueError("--ai-price-per-1000 должно быть конечным неотрицательным числом.")
+    return price / 1000
+
+
 def plan_sha(kind: str, jobs: list[dict]) -> str:
     return sha256(json.dumps({"schema": SCHEMA_VERSION, "kind": kind,
                               "jobs": [j["job_key"] for j in jobs]}).encode())
@@ -342,7 +358,7 @@ def fetch_and_store(job: dict, auth: dict[str, str], raw_path: Path, timeout: in
     return {"failure_class": "response_redacted" if clean != body else None, "raw_path": path, "http_status": status}
 
 
-def parse_response(kind: str, body: bytes, status: int | None) -> dict:
+def parse_response(kind: str, body: bytes, status: int | None, pagetype: str | None = None) -> dict:
     """Возвращает {error_code, error_text, ...}; код ошибки — строкой."""
     if kind == "wordstat":
         data = json.loads(body.decode("utf-8"))
@@ -350,11 +366,12 @@ def parse_response(kind: str, body: bytes, status: int | None) -> dict:
             raise ValueError("ответ Wordstat не объект JSON")
         if "error" in data or ("code" in data and "popular" not in data and "graph" not in data):
             return {"error_code": str(data.get("code", "unknown")), "error_text": str(data.get("error", ""))[:300]}
-        if isinstance(data.get("popular"), list):
-            if not isinstance(data.get("associations", []), list):
-                raise ValueError("associations Wordstat не список")
-        elif not isinstance(data.get("graph"), dict):
-            raise ValueError("в ответе Wordstat нет ни popular, ни graph")
+        # Проверяется поле, которое ждёт именно это задание: words — popular, history — graph.
+        if pagetype == "history":
+            if not isinstance(data.get("graph"), dict):
+                raise ValueError("в ответе history нет graph")
+        elif not isinstance(data.get("popular"), list) or not isinstance(data.get("associations", []), list):
+            raise ValueError("в ответе words нет списка popular")
         return {"error_code": None, "data": data}
     root = ET.fromstring(body)
     response = root.find("response")
@@ -390,7 +407,7 @@ def finalize(db: sqlite3.Connection, run: Path, job: dict, attempt_id: int, outc
     if meta["sha256"] != sha256(body) or meta["http_status"] != status:
         return "inflight"
     try:
-        parsed = parse_response(job["kind"], body, status)
+        parsed = parse_response(job["kind"], body, status, job["params"].get("pagetype"))
         failure = outcome["failure_class"]
     except (ET.ParseError, ValueError, UnicodeDecodeError):
         parsed, failure = None, "response_unparseable"
@@ -533,7 +550,7 @@ def success_payloads(db: sqlite3.Connection, run: Path, jobs: list[dict]):
         body = (run / rel).read_bytes()
         if sha256(body) != digest:
             raise ValueError(f"Контрольная сумма сырого ответа не совпала: {rel}")
-        yield job, parse_response(job["kind"], body, 200), rel, digest, when
+        yield job, parse_response(job["kind"], body, 200, job["params"].get("pagetype")), rel, digest, when
 
 
 def export_serp(db: sqlite3.Connection, run: Path, jobs: list[dict]) -> dict:
@@ -661,13 +678,23 @@ def export_wordstat(db: sqlite3.Connection, run: Path, jobs: list[dict]) -> dict
         else:
             graph = data.get("graph") or {}
             series = (((graph.get("images") or {}).get("timeSeries") or {}).get("rawValues")) or graph.get("tableData") or []
-            item["dynamics"] = [{"date": datetime.fromtimestamp(int(p["startTimestamp"]) / 1000, MSK).date().isoformat(),
-                                 "count": wordstat_number(p.get("absoluteValue")),
-                                 "share": float(str(p.get("value", "0")).replace(",", "."))} for p in series
-                                if "startTimestamp" in p]
+            points = []
+            for point in series:
+                try:
+                    points.append({"date": datetime.fromtimestamp(int(point["startTimestamp"]) / 1000, MSK).date().isoformat(),
+                                   "count": wordstat_number(point.get("absoluteValue")),
+                                   "share": float(str(point.get("value", "0")).replace(",", "."))})
+                except (KeyError, TypeError, ValueError, OverflowError, OSError) as error:
+                    row_errors.append({"mask": key[0], "region": key[1], "field": "graph", "text": json.dumps(point, ensure_ascii=False)[:200],
+                                       "error": f"{type(error).__name__}: {error}"})
+            item["dynamics"] = points
             if data.get("totalValue") is not None:
-                item["totalCount"] = wordstat_number(data["totalValue"])
-                item["totalCountSource"] = "xmlriver_history_totalValue_previous_month"
+                try:
+                    item["totalCount"] = wordstat_number(data["totalValue"])
+                    item["totalCountSource"] = "xmlriver_history_totalValue_previous_month"
+                except ValueError as error:
+                    row_errors.append({"mask": key[0], "region": key[1], "field": "totalValue",
+                                       "text": str(data["totalValue"])[:200], "error": str(error)})
     # Один регион — файлы прямо в raw_bundle (как у облачного сборщика); несколько — по каталогу на регион,
     # чтобы рендер волны не смешивал регионы.
     regions = sorted({r for (_, r) in grouped})
@@ -771,7 +798,8 @@ def run_command(args: argparse.Namespace) -> int:
     state = statuses(db, jobs)
     counts = {s: list(state.values()).count(s) for s in ("pending", "inflight", "success", "empty", "error")}
     if args.command == "plan":
-        price = Decimal(args.price_per_1000) / 1000
+        price = Decimal(args.price_per_1000) / 1000 + (ai_extra_per_request(args) if args.ai and args.ai_price_per_1000
+                                                        and args.kind == "serp" else Decimal(0))
         todo = counts["pending"] + counts["error"]
         print(json.dumps({"jobs_total": len(jobs), "by_engine": {e: sum(j["engine"] == e for j in jobs)
                                                                   for e in sorted({j["engine"] for j in jobs})},
@@ -789,8 +817,12 @@ def run_command(args: argparse.Namespace) -> int:
         raise ValueError("Журнала ещё нет: сначала plan и collect.")
     if args.command == "export":
         result = export_serp(db, run, jobs) if args.kind == "serp" else export_wordstat(db, run, jobs)
+        # Полнота — по всему плану: невыполненные, ошибочные и зависшие задания делают экспорт неполным.
+        unfinished = counts["pending"] + counts["error"] + counts["inflight"]
+        result["complete"] = not result.get("row_errors") and unfinished == 0
+        result["unfinished_jobs"] = unfinished
         print(json.dumps({**result, "status": counts}, ensure_ascii=False))
-        return 2 if result.get("row_errors") else 0
+        return 0 if result["complete"] else 2
     if args.command == "inflight":
         rows = inflight_rows(db, by_key)
         if not args.job_key:
@@ -814,10 +846,7 @@ def run_command(args: argparse.Namespace) -> int:
         raise ValueError(f"С демо-доступом потолок не больше {DEMO_MAX_COST} руб. за запуск: заведите свой ключ XMLRiver.")
     if args.ai and demo:
         raise ValueError("Платный режим --ai с демо-доступом запрещён: заведите свой ключ XMLRiver.")
-    if args.ai and not args.ai_price_per_1000:
-        raise ValueError("Для --ai укажите --ai-price-per-1000 — надбавку по тарифу: get_info её не сообщает, "
-                         "без неё потолок стоимости не проверить.")
-    ai_extra = Decimal(args.ai_price_per_1000) / 1000 if args.ai else Decimal(0)
+    ai_extra = ai_extra_per_request(args)
     with db:
         for job in jobs:
             db.execute("INSERT OR IGNORE INTO jobs(job_key,kind,engine,spec_json,status) VALUES(?,?,?,?,'pending')",
