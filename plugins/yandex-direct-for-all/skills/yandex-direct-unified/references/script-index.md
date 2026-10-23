@@ -55,7 +55,7 @@
 - collect_operational_precheck.py, audit_campaign_meta.py, audit_ad_delivery_failures.py — точечные проверки;
 - collect_all.py и fetch_sqr.sh — запасной ручной режим.
 
-Для разового чтения ключей не отправлять пустой `SelectionCriteria` в `AdGroups.get` и `Keywords.get`: нужны `CampaignIds` или `Ids`, номера делятся на пачки по 10, каждый ключ сверяется со своей группой и кампанией. Старый токен может дать ошибку Директа 58 («Незавершённая регистрация»), даже если файл токена на месте.
+Для разового чтения ключей не отправлять пустой `SelectionCriteria` в `AdGroups.get` и `Keywords.get`: нужны `CampaignIds` или `Ids`, номера делятся на пачки по 10, каждый ключ сверяется со своей группой и кампанией. Ошибка Директа 58 («Незавершённая регистрация») означает, что регистрация приложения для работы с API не завершена (нет одобренной заявки на доступ), а не что токен устарел: пересоздание токена её не исправит.
 
 ## Проверка и подготовка пакетов
 
@@ -73,7 +73,7 @@
 
 ## Запись
 
-- skills/yandex-performance-ops/scripts/direct_write_gate.py — единственные ворота записи: `--pack ФАЙЛ --pack-sha256 СУММА`, без `--apply` только проверка пакета.
+- skills/yandex-performance-ops/scripts/direct_write_gate.py — единственные ворота записи: `--pack ФАЙЛ_ПАКЕТА --pack-sha256 ФАЙЛ_СУММЫ` (путь к отдельному файлу с контрольной суммой пакета, а не сама сумма), без `--apply` только проверка пакета.
 - Скрипты `deploy_search_campaigns.py`, `apply_*`, `send_to_moderation.py`, `resume_ads.py`, `retire_ads.py`, `update_ads_sitelinks.py`, `update_callouts_set.py`, `fix_autotargeting_exact_only.py` в том же каталоге — совместимые входы в эти ворота.
 - prefilter_rsya_manual_queue.py — предварительная разметка очереди площадок, ручное решение остаётся пустым.
 
