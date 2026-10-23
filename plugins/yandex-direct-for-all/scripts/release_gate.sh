@@ -668,6 +668,10 @@ useDefault = true
 description = "Documented synthetic OAuth placeholder"
 regexTarget = "match"
 regexes = ['''YOUR_OAUTH_TOKEN''']
+
+[[allowlists]]
+description = "Intentionally public shared XMLRiver demo access (owner decision, capped by the script)"
+paths = ['''plugins/yandex-direct-for-all/skills/xmlriver-serp-research/config/xmlriver_demo_access\.json''']
 EOF
 gitleaks dir "$REPO_ROOT" --no-banner --redact --config "$TEMP_ROOT/gitleaks.toml"
 gitleaks git "$REPO_ROOT" --no-banner --redact --config "$TEMP_ROOT/gitleaks.toml"

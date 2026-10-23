@@ -6,5 +6,6 @@
 4. amocrm-api-control — доступ и сверка amoCRM.
 5. yandex-performance-ops — совместимый переходник и сценарии.
 6. yandex-direct-client-lifecycle — совместимый переходник и исследовательские шаблоны.
+7. xmlriver-serp-research — выдача Яндекса и Google и Wordstat через XMLRiver, альтернатива Yandex Cloud.
 
 Все пути находятся внутри skills.
