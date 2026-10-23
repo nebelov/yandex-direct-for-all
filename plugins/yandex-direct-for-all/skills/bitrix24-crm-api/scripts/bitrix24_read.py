@@ -86,7 +86,7 @@ def call(base: str, method: str, params: dict | None = None, retries: int = 5) -
             with urllib.request.urlopen(request, timeout=60) as response:
                 data = json.loads(response.read())
         except urllib.error.HTTPError as error:
-            text = error.read().decode("utf-8", "replace")
+            text = mask(error.read().decode("utf-8", "replace"), base)  # маскировать до любой обрезки
             if error.code in (429, 503) or "QUERY_LIMIT_EXCEEDED" in text or "OPERATION_TIME_LIMIT" in text:
                 time.sleep(2 * (attempt + 1))
                 continue
@@ -119,7 +119,10 @@ def list_by_id(base: str, method: str, params: dict) -> tuple[list[dict], int]:
         rows.extend(batch)
         if len(batch) < 50:
             return rows, pages
-        last_id = int(batch[-1].get("ID") or batch[-1].get("id"))
+        last = batch[-1].get("ID") or batch[-1].get("id")
+        if last is None:
+            raise RuntimeError(f"{method}: строка без ID — обход по ID невозможен, выгрузка неполная.")
+        last_id = int(last)
         time.sleep(PAUSE)
 
 
@@ -173,10 +176,14 @@ def cmd_export(args: argparse.Namespace) -> dict:
     if args.fields:
         fields = [f.strip() for f in args.fields.split(",") if f.strip()]
     if not args.include_personal_data:
-        fields = [f for f in fields if f not in PERSONAL]
+        fields = [f for f in fields if f.upper() not in PERSONAL]
     if "ID" not in fields:
         fields = ["ID", *fields]  # обход по ID и проверка полноты без ID невозможны
     base = webhook(args, telephony=args.entity == "call")
+    out = Path(args.out)
+    for stale in (out / f"{args.entity}.json", out / f"{args.entity}.manifest.json"):
+        if stale.exists():
+            stale.unlink()  # прошлая выгрузка не должна остаться на месте, если эта упадёт
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
     period = {f">={date_field}": args.since, f"<{date_field}": args.until}
     if args.entity == "call":
@@ -187,7 +194,8 @@ def cmd_export(args: argparse.Namespace) -> dict:
     else:
         rows, pages = list_by_id(base, method, {"filter": period, "select": fields})
     # Сохраняются только объявленные поля: метод может вернуть всё (комментарии, ссылки на записи звонков).
-    keep = {f.upper() for f in fields} | (PERSONAL if args.include_personal_data else set())
+    # Личные поля сохраняются только при явном флаге и только если названы в --fields.
+    keep = {f.upper() for f in fields if args.include_personal_data or f.upper() not in PERSONAL}
     rows = [{k: v for k, v in row.items() if k.upper() in keep} for row in rows]
     ids = [str(row.get("ID") or row.get("id") or "") for row in rows]
     complete = all(ids) and len(ids) == len(set(ids))
@@ -195,7 +203,6 @@ def cmd_export(args: argparse.Namespace) -> dict:
                 "unique_ids": len(set(ids)), "pages": pages, "complete": complete,
                 "started_utc": started, "finished_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "timezone_note": "даты REST — в часовом поясе портала", "personal_data": args.include_personal_data}
-    out = Path(args.out)
     save(out / f"{args.entity}.json", rows)
     save(out / f"{args.entity}.manifest.json", manifest)
     if not manifest["complete"]:
